@@ -1,0 +1,132 @@
+{
+  "entities": {
+    "Member": {
+      "title": "Member",
+      "description": "A user profile in the Dad League.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "availability": { "type": "string" },
+        "location": { "type": "string" },
+        "interests": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "email"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "An idea for a Dad League meetup.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "location": { "type": "string" },
+        "suggestedBy": { "type": "string" },
+        "votes": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "suggestedBy"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "A scheduled meetup.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "activityId": { "type": "string" },
+        "activityName": { "type": "string" },
+        "activityType": { "type": "string" },
+        "location": { "type": "string" },
+        "description": { "type": "string" },
+        "hostId": { "type": "string" },
+        "hostName": { "type": "string" },
+        "attendees": { "type": "array", "items": { "type": "string" } },
+        "declined": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string", "enum": ["planned", "completed", "cancelled"] }
+      },
+      "required": ["id", "date", "activityName"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A chat message.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "threadId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "senderId", "text", "createdAt"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "A post on the community board.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorPhoto": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "likes": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "authorId", "title", "content", "createdAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A comment on a post.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "postId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorPhoto": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "postId", "authorId", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/members/{userId}": {
+      "schema": "Member",
+      "description": "User profiles"
+    },
+    "/activities/{activityId}": {
+      "schema": "Activity",
+      "description": "Backlog of ideas"
+    },
+    "/sessions/{sessionId}": {
+      "schema": "Session",
+      "description": "Scheduled events"
+    },
+    "/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Chat messages"
+    },
+    "/leagues/{leagueId}": {
+      "schema": "League",
+      "description": "Dad Leagues"
+    },
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "Community board posts"
+    },
+    "/posts/{postId}/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Comments on posts"
+    }
+  }
+}

@@ -1,0 +1,190 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isLeagueMember(leagueId) {
+      return isSignedIn() && 
+             request.auth.token.email_verified == true &&
+             leagueId is string &&
+             exists(/databases/$(database)/documents/members/$(request.auth.uid)) &&
+             leagueId in get(/databases/$(database)/documents/members/$(request.auth.uid)).data.leagueIds;
+    }
+
+    // Validation Blueprints
+    function isValidMember(data) {
+      return data.keys().hasAll(['userId', 'displayName', 'email']) &&
+             data.userId == request.auth.uid &&
+             data.displayName is string && data.displayName.size() <= 100 &&
+             data.email is string && data.email.size() <= 200;
+    }
+
+    function isValidActivity(data) {
+      return data.keys().hasAll(['title', 'suggestedBy', 'votes', 'leagueId', 'category', 'status']) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.suggestedBy is string &&
+             data.leagueId is string &&
+             (data.votes is list) &&
+             data.category is string &&
+             data.status in ['active', 'archived'];
+    }
+
+    function isValidSession(data) {
+      return data.keys().hasAll(['date', 'activityName', 'hostId', 'hostName', 'attendees', 'declined', 'status', 'leagueId']) &&
+             data.activityName is string && data.activityName.size() <= 200 &&
+             data.hostId is string && data.hostName is string &&
+             data.leagueId is string &&
+             data.date is string &&
+             data.attendees is list && data.declined is list &&
+             data.status in ['planned', 'completed', 'cancelled'];
+    }
+
+    function isValidPost(data) {
+      return data.keys().hasAll(['authorId', 'title', 'content', 'createdAt', 'leagueId']) &&
+             data.authorId == request.auth.uid &&
+             data.title is string && data.title.size() <= 200 &&
+             data.leagueId is string &&
+             data.content is string && data.content.size() <= 10000 &&
+             (!('imageUrl' in data) || data.imageUrl is string) &&
+             (!('linkPreview' in data) || data.linkPreview == null || (data.linkPreview is map && data.linkPreview.url is string));
+    }
+
+    function isValidComment(data) {
+      return data.keys().hasAll(['authorId', 'postId', 'text', 'createdAt', 'leagueId']) &&
+             data.authorId == request.auth.uid &&
+             data.postId is string &&
+             data.leagueId is string &&
+             data.text is string && data.text.size() <= 2000;
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['senderId', 'senderName', 'text', 'createdAt', 'leagueId']) &&
+             (data.senderId == request.auth.uid || data.senderId == 'SYSTEM') &&
+             data.leagueId is string &&
+             data.text is string && data.text.size() <= 10000;
+    }
+
+    // Helper for legacy data migration in rules
+    function effectiveLeagueId(data) {
+      return 'leagueId' in data ? data.leagueId : 'default-league';
+    }
+
+    match /leagues/{leagueId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.token.email_verified == true && isValidId(leagueId);
+      allow update: if isSignedIn() && request.auth.token.email_verified == true && (
+        // Joining with invite code
+        (incoming().diff(existing()).affectedKeys().hasOnly(['memberIds']) && 
+         incoming().memberIds.hasAll(existing().memberIds) &&
+         incoming().memberIds.size() == existing().memberIds.size() + 1 &&
+         request.auth.uid in incoming().memberIds) ||
+        // Owner management
+        (isOwner(existing().ownerId) && incoming().ownerId == existing().ownerId)
+      );
+    }
+
+    function memberLeagues() {
+      let data = get(/databases/$(database)/documents/members/$(request.auth.uid)).data;
+      return 'leagueIds' in data ? data.leagueIds : ['default-league'];
+    }
+
+    function isInSameLeague(data) {
+      let myLeagues = memberLeagues();
+      let theirLeagues = 'leagueIds' in data ? data.leagueIds : ['default-league'];
+      return myLeagues.hasAny(theirLeagues);
+    }
+
+    match /members/{userId} {
+      allow get: if isSignedIn() && (
+        userId == request.auth.uid ||
+        // Check if we share a league
+        (exists(/databases/$(database)/documents/members/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/members/$(request.auth.uid)).data.leagueIds.hasAny(existing().leagueIds))
+      );
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.token.email_verified == true && isOwner(userId) && isValidMember(incoming());
+      allow update: if isSignedIn() && isOwner(userId) && 
+                    (incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'availability', 'location', 'interests', 'leagueIds']));
+    }
+
+    match /activities/{activityId} {
+      allow read: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing()));
+      allow create: if isSignedIn() && request.auth.token.email_verified == true && isValidId(activityId) && isValidActivity(incoming()) && isLeagueMember(incoming().leagueId) && incoming().suggestedBy == request.auth.uid;
+      allow update: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing())) && (
+        // Voting toggle
+        (incoming().diff(existing()).affectedKeys().hasOnly(['votes']) && (
+          (existing().votes is list && (incoming().votes.hasAll(existing().votes) || existing().votes.hasAll(incoming().votes))) ||
+          (!(existing().votes is list) && incoming().votes is list)
+        )) ||
+        // Owner edit
+        (isOwner(existing().suggestedBy) && isValidActivity(incoming()) && incoming().diff(existing()).affectedKeys().hasAny(['title', 'description', 'category', 'location']))
+      );
+      allow delete: if isSignedIn() && isOwner(existing().suggestedBy);
+    }
+
+    match /sessions/{sessionId} {
+      allow read: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing()));
+      allow create: if isSignedIn() && request.auth.token.email_verified == true && isValidId(sessionId) && isValidSession(incoming()) && isLeagueMember(incoming().leagueId);
+      allow update: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing())) && (
+        // Action: RSVP
+        (incoming().diff(existing()).affectedKeys().hasOnly(['attendees', 'declined'])) ||
+        // Action: Host Edit
+        (isOwner(existing().hostId) && 
+         incoming().diff(existing()).affectedKeys().hasAny(['date', 'activityName', 'activityType', 'location', 'description', 'status', 'updatedAt']))
+      );
+      allow delete: if isSignedIn() && isOwner(existing().hostId);
+    }
+
+    match /posts/{postId} {
+      allow read: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing()));
+      allow create: if isSignedIn() && request.auth.token.email_verified == true && isValidId(postId) && isValidPost(incoming()) && isLeagueMember(incoming().leagueId);
+      allow update: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing())) && (
+        // Like action
+        (incoming().diff(existing()).affectedKeys().hasOnly(['likes'])) ||
+        // Author edit
+        (isOwner(existing().authorId) && (incoming().diff(existing()).affectedKeys().hasAny(['content', 'imageUrl', 'linkPreview'])))
+      );
+      allow delete: if isSignedIn() && isOwner(existing().authorId);
+
+      match /comments/{commentId} {
+        allow read: if isSignedIn() && (
+          ('leagueId' in existing() && isLeagueMember(existing().leagueId)) ||
+          (!('leagueId' in existing()) && isLeagueMember(effectiveLeagueId(get(/databases/$(database)/documents/posts/$(postId)).data)))
+        );
+        allow create: if isSignedIn() && request.auth.token.email_verified == true && isValidId(commentId) && isValidComment(incoming()) && isLeagueMember(incoming().leagueId);
+        allow delete: if isSignedIn() && isOwner(existing().authorId);
+      }
+    }
+
+    match /messages/{messageId} {
+      allow read: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing())); 
+      allow create: if isSignedIn() && request.auth.token.email_verified == true && isValidId(messageId) && isValidMessage(incoming()) && isLeagueMember(incoming().leagueId);
+    }
+  }
+}

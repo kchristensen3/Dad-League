@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-indigo-50: #f0f6f8;
+  --color-indigo-100: #e1edf1;
+  --color-indigo-200: #c2dae2;
+  --color-indigo-300: #a3c7d4;
+  --color-indigo-400: #65a1b7;
+  --color-indigo-500: #326273;
+  --color-indigo-600: #2d5867;
+  --color-indigo-700: #264a57;
+  --color-indigo-800: #1e3b45;
+  --color-indigo-900: #193139;
+  --color-indigo-950: #0d1a1e;
+}

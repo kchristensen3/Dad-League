@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1242 2688" width="1242" height="2688">
+  <defs>
+    <linearGradient id="splashBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1E1B4B"/>
+      <stop offset="40%" stop-color="#312E81"/>
+      <stop offset="80%" stop-color="#4338CA"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </linearGradient>
+    <linearGradient id="goldGradSplash" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE68A"/>
+      <stop offset="50%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="20" stdDeviation="30" flood-color="#0F172A" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <rect width="1242" height="2688" fill="url(#splashBg)"/>
+
+  <!-- Radial highlight behind emblem -->
+  <circle cx="621" cy="1100" r="500" fill="#6366F1" opacity="0.3"/>
+
+  <g transform="translate(109, 600)" filter="url(#glow)">
+    <!-- Emblem Shield -->
+    <path d="M512 180 L760 260 C760 520 660 680 512 760 C364 680 264 520 264 260 Z" 
+          fill="#1E1B4B" opacity="0.6" stroke="#818CF8" stroke-width="10" stroke-linejoin="round"/>
+
+    <path d="M512 210 L730 280 C730 500 640 645 512 720 C384 645 294 500 294 280 Z" 
+          fill="#312E81" opacity="0.8"/>
+
+    <!-- Handles -->
+    <path d="M380 340 C310 340 280 400 280 450 C280 520 340 560 410 560" 
+          fill="none" stroke="url(#goldGradSplash)" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M644 340 C714 340 744 400 744 450 C744 520 684 560 614 560" 
+          fill="none" stroke="url(#goldGradSplash)" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Trophy Body -->
+    <path d="M370 310 H654 L630 510 C610 580 560 620 512 620 C464 620 414 580 394 510 Z" 
+          fill="url(#goldGradSplash)"/>
+    <rect x="350" y="290" width="324" height="36" rx="18" fill="#FEF3C7"/>
+    <path d="M480 620 H544 V680 H480 Z" fill="#D97706"/>
+    <path d="M430 680 H594 L620 730 H404 Z" fill="#F59E0B"/>
+    <rect x="380" y="730" width="264" height="40" rx="12" fill="#FEF3C7"/>
+    <polygon points="512,380 528,425 576,425 538,452 552,496 512,470 472,496 486,452 448,425 496,425" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Typography -->
+  <text x="621" y="1560" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="76" font-weight="900" fill="#FFFFFF" letter-spacing="8">DAD LEAGUE</text>
+  <text x="621" y="1640" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="28" font-weight="700" fill="#C7D2FE" letter-spacing="6">GET OUT ONCE A WEEK</text>
+</svg>

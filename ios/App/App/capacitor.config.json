@@ -1,0 +1,14 @@
+{
+	"appId": "com.dadleague.app",
+	"appName": "Dad League",
+	"webDir": "dist",
+	"bundledWebRuntime": false,
+	"server": {
+		"androidScheme": "https"
+	},
+	"ios": {
+		"contentInset": "automatic",
+		"scheme": "Dad League"
+	},
+	"packageClassList": []
+}

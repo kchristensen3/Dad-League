@@ -102,6 +102,20 @@ export default function About({ league, onAccept }: AboutProps) {
             </div>
           </div>
         </div>
+
+        {/* Legal & App Store Compliance Footer */}
+        <div className="pt-6 pb-2 text-center text-xs text-slate-400 flex flex-col sm:flex-row items-center justify-center gap-4 border-t border-slate-200">
+          <span>Dad League v1.0 • Built with pride for dads everywhere</span>
+          <div className="flex items-center gap-3">
+            <a href="/privacy" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-indigo-600 font-bold underline">
+              Privacy Policy
+            </a>
+            <span>•</span>
+            <a href="/terms" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-indigo-600 font-bold underline">
+              Terms of Service
+            </a>
+          </div>
+        </div>
       </section>
     </div>
   );

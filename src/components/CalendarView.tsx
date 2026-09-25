@@ -5,6 +5,7 @@ import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, arrayUn
 import { db } from '../lib/firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 import { Session, Activity, Member } from '../types';
+import { formatGooglePlaceLocation, formatBacklogLocationForEvent } from '../lib/locationUtils';
 import { 
   Calendar as CalendarIcon, 
   MapPin, 
@@ -362,7 +363,8 @@ export default function CalendarView({ user, leagueId, sessions, onNavigateToCha
                   if (activity) {
                     setEventName(activity.title);
                     setActivityType(activity.category);
-                    setLocation(activity.location || '');
+                    const formattedLoc = formatBacklogLocationForEvent(activity.location, activity.title);
+                    setLocation(formattedLoc);
                     setDescription(activity.description);
                   }
                 }}
@@ -433,9 +435,9 @@ export default function CalendarView({ user, leagueId, sessions, onNavigateToCha
                 <Autocomplete
                   apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
                   onPlaceSelected={(place) => {
-                    setLocation(place.formatted_address || place.name || '');
+                    setLocation(formatGooglePlaceLocation(place));
                   }}
-                  defaultValue={location}
+                  value={location}
                   onChange={(e: any) => setLocation(e.target.value)}
                   options={{
                     types: ["geocode", "establishment"],
@@ -492,8 +494,7 @@ export default function CalendarView({ user, leagueId, sessions, onNavigateToCha
             {upcomingSessions.length === 0 ? (
               <div className="text-center py-16 bg-white rounded-[2rem] border border-slate-200 shadow-sm border-dashed">
                 <CalendarIcon size={40} className="mx-auto text-slate-200 mb-3" />
-                <p className="text-slate-500 font-bold">No upcoming trips.</p>
-                <p className="text-slate-400 text-xs mt-1">Time to rally the boys.</p>
+                <p className="text-slate-500 font-bold">No upcoming events</p>
               </div>
             ) : (
               upcomingSessions.map(session => (
@@ -723,13 +724,14 @@ function SessionCard({ session, activities, getCalendarLink, getMapsLink, member
                 <Autocomplete
                    apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
                    onPlaceSelected={(place) => {
-                     setEditLocation(place.formatted_address || place.name || '');
+                     setEditLocation(formatGooglePlaceLocation(place));
                    }}
-                   defaultValue={editLocation}
+                   value={editLocation}
                    onChange={(e: any) => setEditLocation(e.target.value)}
                    options={{
                      types: ["geocode", "establishment"],
                    }}
+                   placeholder="e.g. Pine Valley Golf Club"
                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>

@@ -1,13 +1,24 @@
 import { useState, KeyboardEvent, useEffect } from 'react';
-import { User } from 'firebase/auth';
-import { doc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { User, deleteUser } from 'firebase/auth';
+import { doc, updateDoc, deleteDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 import { Member } from '../types';
-import { LogOut, MapPin, Clock, Save, Hash, X } from 'lucide-react';
-import { motion } from 'motion/react';
+import { LogOut, MapPin, Clock, Save, Hash, X, Trash2, AlertTriangle, ShieldCheck, FileText, Download, Smartphone, Terminal, Check, FolderDown } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import LegalModal from './LegalModal';
 
-export default function Profile({ user, member, onLogout }: { user: User, member: Member | null, onLogout: () => void }) {
+export default function Profile({ 
+  user, 
+  member, 
+  onLogout,
+  onShowLoginScreen
+}: { 
+  user: User, 
+  member: Member | null, 
+  onLogout: () => void,
+  onShowLoginScreen?: () => void
+}) {
   const [location, setLocation] = useState(member?.location || '');
   const [availability, setAvailability] = useState(member?.availability || '');
   const [interests, setInterests] = useState<string[]>(member?.interests || []);
@@ -15,6 +26,19 @@ export default function Profile({ user, member, onLogout }: { user: User, member
   const [saving, setSaving] = useState(false);
   const [attendedCount, setAttendedCount] = useState(0);
   const [proposedCount, setProposedCount] = useState(0);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [legalModalTab, setLegalModalTab] = useState<'privacy' | 'terms' | null>(null);
+  const [showExportGuide, setShowExportGuide] = useState(false);
+  const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedCmd(id);
+    setTimeout(() => setCopiedCmd(null), 2000);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -70,6 +94,29 @@ export default function Profile({ user, member, onLogout }: { user: User, member
 
   const removeInterest = (tag: string) => {
     setInterests(interests.filter(i => i !== tag));
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      // 1. Delete Firestore member record
+      await deleteDoc(doc(db, 'members', user.uid));
+      // 2. Delete Auth user credentials
+      await deleteUser(user);
+      setShowDeleteModal(false);
+      onLogout();
+    } catch (err: any) {
+      console.error('Delete account error:', err);
+      if (err?.code === 'auth/requires-recent-login') {
+        setDeleteError('For your security, deleting your account requires a recent login. Please log out, log back in, and try again.');
+      } else {
+        setDeleteError(err?.message || 'Failed to delete account. Please try again.');
+      }
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -173,6 +220,235 @@ export default function Profile({ user, member, onLogout }: { user: User, member
           </div>
         </div>
       </div>
+
+      {/* Export & Mobile Build Section (Capacitor & GitHub) */}
+      <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-xl p-6 md:p-8 shadow-xl border border-indigo-900/50 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-black uppercase tracking-wider mb-2 border border-indigo-500/30">
+              <Smartphone size={12} /> Mobile & Code Export
+            </div>
+            <h4 className="text-xl font-black uppercase tracking-tight text-white flex items-center gap-2">
+              Export App & Build in Capacitor
+            </h4>
+            <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
+              Export the complete codebase (including iOS/Android Capacitor config, legal files, icons, and Firebase logic) to push to GitHub or compile for the Apple App Store and Google Play.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+            <a
+              href="/dad-league-source.zip"
+              download="dad-league-source.zip"
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-black uppercase text-xs tracking-wider rounded-xl shadow-lg shadow-indigo-600/30 transition-all border border-indigo-400/30"
+            >
+              <Download size={16} /> Download .ZIP
+            </a>
+            <button
+              onClick={() => setShowExportGuide(!showExportGuide)}
+              className="px-4 py-3 bg-white/10 hover:bg-white/20 active:scale-95 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all border border-white/10 text-center"
+            >
+              {showExportGuide ? 'Hide Guide' : 'Setup Guide'}
+            </button>
+          </div>
+        </div>
+
+        {showExportGuide && (
+          <div className="pt-4 border-t border-white/10 space-y-5 text-left">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Step 1: Push to GitHub */}
+              <div className="bg-black/30 rounded-xl p-4 border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+                    <Terminal size={14} /> 1. Push to GitHub
+                  </span>
+                  <button
+                    onClick={() => copyToClipboard('git init\ngit add .\ngit commit -m "Initial Dad League commit"\ngit branch -M main\ngit remote add origin <YOUR_GITHUB_REPO_URL>\ngit push -u origin main', 'github')}
+                    className="text-[10px] font-black uppercase tracking-wider text-slate-400 hover:text-white flex items-center gap-1"
+                  >
+                    {copiedCmd === 'github' ? <Check size={12} className="text-emerald-400" /> : null}
+                    {copiedCmd === 'github' ? 'Copied' : 'Copy Commands'}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Unzip the downloaded archive on your computer, open your terminal in the folder, and run:
+                </p>
+                <pre className="p-2.5 bg-black/60 rounded-lg text-[11px] text-indigo-200 font-mono overflow-x-auto leading-relaxed border border-white/5">
+                  <code>{`git init
+git add .
+git commit -m "Initial Dad League commit"
+git branch -M main
+git remote add origin https://github.com/<user>/dad-league.git
+git push -u origin main`}</code>
+                </pre>
+              </div>
+
+              {/* Step 2: Build with Capacitor */}
+              <div className="bg-black/30 rounded-xl p-4 border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                    <Smartphone size={14} /> 2. Build for iOS / Android
+                  </span>
+                  <button
+                    onClick={() => copyToClipboard('npm install\nnpm run build\nnpx cap add ios\nnpx cap sync\nnpx cap open ios', 'cap')}
+                    className="text-[10px] font-black uppercase tracking-wider text-slate-400 hover:text-white flex items-center gap-1"
+                  >
+                    {copiedCmd === 'cap' ? <Check size={12} className="text-emerald-400" /> : null}
+                    {copiedCmd === 'cap' ? 'Copied' : 'Copy Commands'}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Your project is already configured with <code className="text-white">capacitor.config.json</code>! In your terminal:
+                </p>
+                <pre className="p-2.5 bg-black/60 rounded-lg text-[11px] text-emerald-200 font-mono overflow-x-auto leading-relaxed border border-white/5">
+                  <code>{`npm install
+npm run build
+npx cap add ios      # (or: npx cap add android)
+npx cap sync
+npx cap open ios     # opens in Xcode for App Store`}</code>
+                </pre>
+              </div>
+            </div>
+
+            <div className="p-3 bg-indigo-900/30 border border-indigo-500/20 rounded-xl text-xs text-indigo-200 flex items-center justify-between">
+              <span>📄 Comprehensive mobile instructions are saved in <strong>CAPACITOR_SETUP.md</strong> inside the zip.</span>
+              <a
+                href="/dad-league-source.zip"
+                download="dad-league-source.zip"
+                className="text-[10px] font-black uppercase tracking-widest text-indigo-300 hover:text-white underline ml-3 shrink-0"
+              >
+                Download Archive (.ZIP)
+              </a>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Account & Privacy Section (Required by Apple App Store Guideline 5.1.1(v)) */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6 md:p-8 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h4 className="text-base font-black uppercase tracking-tight text-slate-800 flex items-center gap-2">
+              <Trash2 size={16} className="text-rose-500" /> Account & Data Privacy
+            </h4>
+            <p className="text-xs text-slate-500 mt-1 max-w-xl leading-relaxed">
+              In accordance with Apple App Store guidelines, you can review our legal policies or permanently delete your account, personal profile, and membership records at any time.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setDeleteConfirmText('');
+              setDeleteError(null);
+              setShowDeleteModal(true);
+            }}
+            className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black uppercase text-[10px] tracking-wider rounded-xl transition-all shrink-0 border border-rose-200 active:scale-95"
+          >
+            Delete Account
+          </button>
+        </div>
+
+        <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center gap-3">
+          {onShowLoginScreen && (
+            <button
+              onClick={onShowLoginScreen}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition-colors cursor-pointer"
+            >
+              <LogOut size={14} className="text-indigo-600 rotate-180" /> Preview Login Screen
+            </button>
+          )}
+          <button
+            onClick={() => setLegalModalTab('privacy')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-xs border border-slate-200 transition-colors"
+          >
+            <ShieldCheck size={14} className="text-indigo-600" /> Privacy Policy
+          </button>
+          <button
+            onClick={() => setLegalModalTab('terms')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-xs border border-slate-200 transition-colors"
+          >
+            <FileText size={14} className="text-indigo-600" /> Terms of Service
+          </button>
+          <a
+            href="/privacy"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[10px] uppercase font-black text-slate-400 hover:text-indigo-600 transition-colors ml-auto"
+          >
+            Open in Browser ↗
+          </a>
+        </div>
+      </div>
+
+      <LegalModal
+        isOpen={legalModalTab !== null}
+        initialTab={legalModalTab || 'privacy'}
+        onClose={() => setLegalModalTab(null)}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-rose-200"
+            >
+              <div className="flex items-center gap-3 text-rose-600">
+                <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black tracking-tight text-slate-800">Permanently Delete Account</h3>
+                  <p className="text-xs text-slate-400">Irreversible Action</p>
+                </div>
+              </div>
+
+              <p className="text-sm text-slate-600 leading-relaxed">
+                This will permanently delete your member profile, remove your preferences, and erase your account. This action <strong>cannot be undone</strong>.
+              </p>
+
+              {deleteError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium">
+                  {deleteError}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider block">
+                  Type <span className="text-rose-600 font-mono font-bold">DELETE</span> to confirm:
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="DELETE"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => setShowDeleteModal(false)}
+                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={deleteConfirmText.trim().toUpperCase() !== 'DELETE' || deleting}
+                  onClick={handleDeleteAccount}
+                  className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-rose-200 transition-all flex items-center justify-center gap-2"
+                >
+                  {deleting ? 'Deleting...' : 'Delete Forever'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

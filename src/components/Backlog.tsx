@@ -5,6 +5,7 @@ import { collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, arrayUn
 import { db } from '../lib/firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 import { Activity } from '../types';
+import { formatGooglePlaceLocation } from '../lib/locationUtils';
 import { ThumbsUp, Plus, X, MapPin, Calendar, User as UserIcon, Edit2, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, parseISO } from 'date-fns';
@@ -203,14 +204,14 @@ export default function Backlog({ user, leagueId }: { user: User, leagueId: stri
                   <Autocomplete 
                     apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
                     onPlaceSelected={(place) => {
-                      setNewLoc(place.formatted_address || place.name || '');
+                      setNewLoc(formatGooglePlaceLocation(place));
                     }}
-                    defaultValue={newLoc}
+                    value={newLoc}
                     onChange={(e: any) => setNewLoc(e.target.value)}
                     options={{
                       types: ["geocode", "establishment"],
                     }}
-                    placeholder="Where should this happen?"
+                    placeholder="Where should this happen? (e.g. Pine Valley Golf Club)"
                     className="w-full p-4 bg-slate-50 border border-slate-200 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition-all"
                   />
                 </div>

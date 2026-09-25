@@ -32,17 +32,21 @@ import {
   User as UserIcon, 
   Info,
   LogOut,
+  LogIn,
   Plus,
   Send,
   Users,
   Trophy,
   Activity as ActivityIcon,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  ShieldCheck,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Components
+import LoginScreen from './components/LoginScreen';
 import About from './components/About';
 import CalendarView from './components/CalendarView';
 import Backlog from './components/Backlog';
@@ -51,14 +55,37 @@ import Profile from './components/Profile';
 import CommunityBoard from './components/CommunityBoard';
 import Members from './components/Members';
 import LeagueManager from './components/LeagueManager';
+import LegalModal from './components/LegalModal';
+
+// Safe storage helpers to avoid DOMException/SecurityError in iframes
+function safeGetStorage(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetStorage(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+}
+
+function safeRemoveStorage(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {}
+}
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [showLoginScreen, setShowLoginScreen] = useState(true);
   const [member, setMember] = useState<Member | null>(null);
   const [leagues, setLeagues] = useState<League[]>([]);
-  const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(localStorage.getItem('selectedLeagueId'));
+  const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(() => safeGetStorage('selectedLeagueId'));
   const [activeTab, setActiveTab] = useState(() => {
-    if (localStorage.getItem('hasSeenAbout')) return 'calendar';
+    if (safeGetStorage('hasSeenAbout')) return 'calendar';
     return 'about';
   });
   const [loading, setLoading] = useState(true);
@@ -68,12 +95,13 @@ export default function App() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [showLeagueSwitcher, setShowLeagueSwitcher] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState<'privacy' | 'terms' | null>(null);
 
   useEffect(() => {
     if (selectedLeagueId) {
-      localStorage.setItem('selectedLeagueId', selectedLeagueId);
+      safeSetStorage('selectedLeagueId', selectedLeagueId);
     } else {
-      localStorage.removeItem('selectedLeagueId');
+      safeRemoveStorage('selectedLeagueId');
     }
   }, [selectedLeagueId]);
 
@@ -89,27 +117,40 @@ export default function App() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        // Sync user to members collection
-        const memberRef = doc(db, 'members', u.uid);
-        const memberSnap = await getDoc(memberRef);
-        
-        if (!memberSnap.exists()) {
-          const newMember: Member = {
+        try {
+          // Sync user to members collection
+          const memberRef = doc(db, 'members', u.uid);
+          const memberSnap = await getDoc(memberRef);
+          
+          if (!memberSnap.exists()) {
+            const newMember: Member = {
+              userId: u.uid,
+              displayName: u.displayName || 'Anonymous Dad',
+              email: u.email || '',
+              photoURL: u.photoURL || '',
+              createdAt: new Date().toISOString(),
+              leagueIds: []
+            };
+            try {
+              await setDoc(memberRef, newMember);
+              setMember(newMember);
+            } catch (err) {
+              console.warn("Could not write member doc:", err);
+              setMember(newMember);
+            }
+          } else {
+            setMember(memberSnap.data() as Member);
+          }
+        } catch (err) {
+          console.warn("Could not read member doc:", err);
+          setMember({
             userId: u.uid,
             displayName: u.displayName || 'Anonymous Dad',
             email: u.email || '',
             photoURL: u.photoURL || '',
             createdAt: new Date().toISOString(),
             leagueIds: []
-          };
-          try {
-            await setDoc(memberRef, newMember);
-            setMember(newMember);
-          } catch (err) {
-            handleFirestoreError(err, OperationType.WRITE, `members/${u.uid}`);
-          }
-        } else {
-          setMember(memberSnap.data() as Member);
+          });
         }
       } else {
         setMember(null);
@@ -117,12 +158,22 @@ export default function App() {
       setLoading(false);
     });
 
-    // Request notification permission
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
+    // Safety timeout: Never leave user stuck on spinner
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 1500);
 
-    return () => unsubscribeAuth();
+    // Request notification permission safely
+    try {
+      if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission().catch(() => {});
+      }
+    } catch {}
+
+    return () => {
+      unsubscribeAuth();
+      clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -138,7 +189,7 @@ export default function App() {
       if (selectedLeagueId && !leagueList.find(l => l.id === selectedLeagueId)) {
         setSelectedLeagueId(null);
       }
-    }, (err) => handleFirestoreError(err, OperationType.GET, 'leagues'));
+    }, (err) => console.warn("Leagues query warning:", err));
 
     return () => unsubscribeL();
   }, [user, selectedLeagueId]);
@@ -146,23 +197,23 @@ export default function App() {
   useEffect(() => {
     if (!user || !selectedLeagueId) return;
 
-    // Fetch sessions specifically for this league
+    // Fetch sessions specifically for this league and sort client-side
     const qS = query(
       collection(db, 'sessions'), 
-      where('leagueId', '==', selectedLeagueId),
-      orderBy('date', 'asc')
+      where('leagueId', '==', selectedLeagueId)
     );
 
     const unsubscribeS = onSnapshot(qS, (snap) => {
-      setSessions(snap.docs.map(d => ({ id: d.id, ...d.data() } as Session)));
-    }, (err) => handleFirestoreError(err, OperationType.GET, 'sessions'));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Session));
+      list.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      setSessions(list);
+    }, (err) => console.warn("Sessions query warning:", err));
 
     // Listener for NEW sessions (push notification feel)
     const qNewSessions = query(
       collection(db, 'sessions'), 
       where('leagueId', '==', selectedLeagueId),
-      orderBy('date', 'desc'), 
-      limit(1)
+      limit(5)
     );
     let initialLoad = true;
     
@@ -187,7 +238,7 @@ export default function App() {
           setTimeout(() => setNotification(null), 8000);
         }
       });
-    }, (err) => console.error("New events listener error:", err));
+    }, (err) => console.warn("New events listener warning:", err));
 
     return () => {
       unsubscribeS();
@@ -199,58 +250,57 @@ export default function App() {
 
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
     try {
       await signInWithPopup(auth, provider);
+      setShowLoginScreen(false);
     } catch (error) {
       console.error("Login failed:", error);
+      throw error;
     }
   };
 
-  const handleLogout = () => signOut(auth);
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+      setMember(null);
+      setShowLoginScreen(true);
+    } catch (err) {
+      console.error("Sign out error:", err);
+    }
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4 text-white">
         <motion.div 
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full"
+          className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full"
         />
+        <p className="text-xs uppercase font-black tracking-widest text-slate-400">Loading Dad League...</p>
       </div>
     );
   }
 
-  if (!user) {
+  // Show login screen if user is not authenticated OR when login screen view is requested
+  if (showLoginScreen || !user) {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-white overflow-hidden relative">
-        <div className="absolute inset-0 opacity-20 pointer-events-none">
-          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-500/20 via-transparent to-transparent"></div>
-        </div>
-        
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-md w-full text-center space-y-8"
-        >
-          <div className="space-y-4">
-            <h1 className="text-6xl font-black tracking-tight uppercase">
-              DAD<span className="text-indigo-500">LEAGUE</span>
-            </h1>
-            <p className="text-slate-400 font-medium text-lg">
-              The premier league for dads who need a break.
-              Plan your hangs. Connect with the crew.
-            </p>
-          </div>
-
-          <button 
-            onClick={handleLogin}
-            className="w-full py-4 bg-white text-slate-900 rounded-2xl font-bold text-xl hover:bg-slate-100 transition-all flex items-center justify-center gap-3 shadow-2xl shadow-slate-950/50 active:scale-95"
-          >
-            <img src="https://www.google.com/favicon.ico" className="w-6 h-6" alt="Google" />
-            Join the League
-          </button>
-        </motion.div>
-      </div>
+      <>
+        <LoginScreen
+          user={user}
+          onLogin={handleLogin}
+          onEnterDashboard={() => setShowLoginScreen(false)}
+          onLogout={handleLogout}
+          isLoading={loading}
+        />
+        <LegalModal
+          isOpen={legalModalTab !== null}
+          initialTab={legalModalTab || 'privacy'}
+          onClose={() => setLegalModalTab(null)}
+        />
+      </>
     );
   }
 
@@ -263,9 +313,17 @@ export default function App() {
               <div className="bg-indigo-600 w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-lg">D</div>
               <h1 className="text-xl font-black tracking-tight uppercase">DAD<span className="text-indigo-600">LEAGUE</span></h1>
             </div>
-            <button onClick={handleLogout} className="p-2 text-slate-400 hover:text-red-600 transition-colors">
-              <LogOut size={20} />
-            </button>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setShowLoginScreen(true)} 
+                className="px-3.5 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <LogIn size={14} /> Login Screen
+              </button>
+              <button onClick={handleLogout} className="p-2 text-slate-400 hover:text-red-600 transition-colors" title="Sign Out">
+                <LogOut size={20} />
+              </button>
+            </div>
           </div>
         </header>
         <LeagueManager 
@@ -337,7 +395,15 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3 shrink-0 relative">
-            <div className="hidden sm:flex items-center bg-slate-50 border border-slate-200 rounded-full px-3 py-1 mr-1">
+            <button 
+              onClick={() => setShowLoginScreen(true)} 
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-all cursor-pointer shadow-xs"
+              title="View Login Screen"
+            >
+              <LogIn size={14} /> Login Screen
+            </button>
+
+            <div className="hidden md:flex items-center bg-slate-50 border border-slate-200 rounded-full px-3 py-1 mr-1">
               <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse mr-2"></div>
               <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{activeLeague?.name}</span>
             </div>
@@ -415,6 +481,16 @@ export default function App() {
                     <div className="p-2 border-t border-slate-100">
                       <button 
                         onClick={() => {
+                          setShowLoginScreen(true);
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-indigo-50 transition-colors text-indigo-700"
+                      >
+                        <LogIn size={18} />
+                        <span className="font-bold text-sm">View Login Screen</span>
+                      </button>
+                      <button 
+                        onClick={() => {
                           setActiveTab('profile');
                           setShowUserMenu(false);
                         }}
@@ -433,6 +509,28 @@ export default function App() {
                         <Info size={18} />
                         <span className="font-bold text-sm">What Is Dad League?</span>
                       </button>
+                      <button 
+                        onClick={() => {
+                          setLegalModalTab('privacy');
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors text-slate-600 hover:text-indigo-600"
+                      >
+                        <ShieldCheck size={18} />
+                        <span className="font-bold text-sm">Privacy & Terms</span>
+                      </button>
+                      <a 
+                        href="/dad-league-source.zip" 
+                        download="dad-league-source.zip"
+                        onClick={() => setShowUserMenu(false)}
+                        className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-indigo-50 transition-colors text-indigo-600 font-bold"
+                      >
+                        <Download size={18} />
+                        <div className="flex flex-col text-left">
+                          <span className="text-sm leading-tight">Export App (.ZIP)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Capacitor & GitHub ready</span>
+                        </div>
+                      </a>
                     </div>
 
                     <div className="p-2 border-t border-slate-100 bg-slate-50/30">
@@ -578,7 +676,12 @@ export default function App() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
             >
-              <Profile user={user} member={member} onLogout={handleLogout} />
+              <Profile 
+                user={user} 
+                member={member} 
+                onLogout={handleLogout} 
+                onShowLoginScreen={() => setShowLoginScreen(true)} 
+              />
             </motion.div>
           )}
           {activeTab === 'members' && (
@@ -599,7 +702,7 @@ export default function App() {
               exit={{ opacity: 0, x: -20 }}
             >
               <About league={activeLeague} onAccept={() => {
-                localStorage.setItem('hasSeenAbout', 'true');
+                safeSetStorage('hasSeenAbout', 'true');
                 setActiveTab('calendar');
               }} />
             </motion.div>
@@ -611,31 +714,56 @@ export default function App() {
       <AnimatePresence>
         {!isScrolled && (
           <motion.nav 
-            initial={{ y: 0, opacity: 1 }}
+            id="main-navigation"
+            initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            transition={{ type: 'spring', damping: 20, stiffness: 100 }}
-            className="fixed bottom-4 left-4 right-4 bg-white/95 backdrop-blur-md text-slate-900 border border-slate-200 px-2 py-3 z-40 rounded-2xl shadow-xl"
+            exit={{ y: 40, opacity: 0 }}
+            transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-lg z-40 p-1.5 rounded-full bg-white/45 backdrop-blur-2xl backdrop-saturate-200 border border-white/70 shadow-[0_8px_32px_0_rgba(31,38,135,0.12),0_1px_2px_0_rgba(255,255,255,0.8)_inset,0_-1px_2px_0_rgba(0,0,0,0.04)_inset]"
           >
-            <div className="max-w-xl mx-auto flex items-center justify-between">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all ${
-                    activeTab === tab.id 
-                      ? 'text-indigo-600 bg-indigo-50 shadow-inner border border-indigo-100' 
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
-                >
-                  <tab.icon size={20} className={activeTab === tab.id ? 'scale-110' : ''} />
-                  <span className="text-[10px] font-bold uppercase tracking-wider">{tab.label}</span>
-                </button>
-              ))}
+            <div className="flex items-center justify-between relative">
+              {tabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    id={`nav-tab-${tab.id}`}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`relative flex flex-col items-center justify-center flex-1 py-2 px-1 rounded-full transition-all duration-300 group select-none ${
+                      isActive 
+                        ? 'text-indigo-900 font-bold' 
+                        : 'text-slate-600 hover:text-slate-900 active:scale-95'
+                    }`}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="active-liquid-capsule"
+                        transition={{ type: 'spring', bounce: 0.22, duration: 0.5 }}
+                        className="absolute inset-0 rounded-full bg-white/75 backdrop-blur-xl shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_1px_rgba(255,255,255,0.9)_inset] border border-white/90"
+                      />
+                    )}
+                    <span className="relative z-10 flex flex-col items-center gap-0.5">
+                      <tab.icon 
+                        size={19} 
+                        className={`transition-transform duration-300 ${isActive ? 'scale-110 stroke-[2.35] text-indigo-700 drop-shadow-[0_1px_2px_rgba(79,70,229,0.2)]' : 'stroke-[1.8] group-hover:scale-105'}`} 
+                      />
+                      <span className={`text-[9px] tracking-tight uppercase font-black transition-colors duration-200 ${isActive ? 'text-indigo-900' : 'text-slate-500'}`}>
+                        {tab.label}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </motion.nav>
         )}
       </AnimatePresence>
+
+      <LegalModal
+        isOpen={legalModalTab !== null}
+        initialTab={legalModalTab || 'privacy'}
+        onClose={() => setLegalModalTab(null)}
+      />
     </div>
   );
 }

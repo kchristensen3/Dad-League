@@ -17,14 +17,17 @@ import {
   orderBy, 
   onSnapshot, 
   doc, 
-  setDoc,
-  getDoc,
-  limit,
-  where
+  setDoc, 
+  updateDoc, 
+  arrayUnion, 
+  getDoc, 
+  limit, 
+  where 
 } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import { handleFirestoreError, OperationType } from './lib/firestoreUtils';
 import { Session, Activity, Member, League } from './types';
+import { syncLeaguesAndRosters } from './lib/rosterSync';
 import { 
   Calendar as CalendarIcon, 
   MessageSquare, 
@@ -41,7 +44,8 @@ import {
   ChevronRight,
   ChevronDown,
   ShieldCheck,
-  Download
+  Download,
+  Minimize2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -56,6 +60,15 @@ import CommunityBoard from './components/CommunityBoard';
 import Members from './components/Members';
 import LeagueManager from './components/LeagueManager';
 import LegalModal from './components/LegalModal';
+import InviteLandingCard from './components/InviteLandingCard';
+import { App as CapApp } from '@capacitor/app';
+import { 
+  getInviteCodeFromUrl, 
+  getStoredInviteCode, 
+  storePendingInviteCode, 
+  clearPendingInviteCode, 
+  autoJoinLeagueWithCode 
+} from './lib/inviteUtils';
 
 // Safe storage helpers to avoid DOMException/SecurityError in iframes
 function safeGetStorage(key: string): string | null {
@@ -80,7 +93,7 @@ function safeRemoveStorage(key: string): void {
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [showLoginScreen, setShowLoginScreen] = useState(true);
+  const [showLoginScreen, setShowLoginScreen] = useState(false);
   const [member, setMember] = useState<Member | null>(null);
   const [leagues, setLeagues] = useState<League[]>([]);
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(() => safeGetStorage('selectedLeagueId'));
@@ -96,6 +109,91 @@ export default function App() {
   const [showLeagueSwitcher, setShowLeagueSwitcher] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [legalModalTab, setLegalModalTab] = useState<'privacy' | 'terms' | null>(null);
+  const [activeInviteCode, setActiveInviteCode] = useState<string | null>(() => getInviteCodeFromUrl() || getStoredInviteCode());
+  const [showInviteModal, setShowInviteModal] = useState<boolean>(() => Boolean(getInviteCodeFromUrl()));
+  const [densityMode, setDensityMode] = useState<'compact' | 'comfortable'>(() => {
+    return (safeGetStorage('dadleague_density') as 'compact' | 'comfortable') || 'compact';
+  });
+
+  // 1. Detect URL invite codes and Capacitor Native App deep links
+  useEffect(() => {
+    const urlCode = getInviteCodeFromUrl();
+    if (urlCode) {
+      storePendingInviteCode(urlCode);
+      setActiveInviteCode(urlCode);
+      setShowInviteModal(true);
+    }
+
+    let removeAppListener: (() => void) | null = null;
+    CapApp.addListener('appUrlOpen', (event) => {
+      try {
+        const parsed = new URL(event.url);
+        const invite = parsed.searchParams.get('invite') || parsed.searchParams.get('code');
+        if (invite) {
+          const clean = invite.trim().toUpperCase();
+          storePendingInviteCode(clean);
+          setActiveInviteCode(clean);
+          setShowInviteModal(true);
+        }
+      } catch (e) {
+        const match = event.url.match(/[?&](?:invite|code)=([a-zA-Z0-9_-]+)/i);
+        if (match && match[1]) {
+          const clean = match[1].trim().toUpperCase();
+          storePendingInviteCode(clean);
+          setActiveInviteCode(clean);
+          setShowInviteModal(true);
+        }
+      }
+    }).then(sub => {
+      removeAppListener = () => sub.remove();
+    }).catch(() => {
+      // Browser environment without capacitor app plugin
+    });
+
+    return () => {
+      if (removeAppListener) removeAppListener();
+    };
+  }, []);
+
+  // 2. Auto-join pipeline: whenever user is authenticated and there is a pending invite code
+  useEffect(() => {
+    if (!user || !activeInviteCode) return;
+
+    let isMounted = true;
+    async function performAutoJoin() {
+      const targetCode = activeInviteCode;
+      try {
+        const res = await autoJoinLeagueWithCode(user, targetCode);
+        if (!isMounted) return;
+
+        if (res.success && res.league) {
+          setSelectedLeagueId(res.league.id);
+          setShowLoginScreen(false);
+          setShowInviteModal(false);
+          setActiveTab('calendar');
+          setNotification({
+            title: '🎉 Welcome to ' + res.league.name + '!',
+            message: res.alreadyMember 
+              ? "Switched to your league." 
+              : "You've successfully joined with 1-tap!"
+          });
+          setTimeout(() => setNotification(null), 6000);
+        }
+      } catch (err) {
+        console.error("Auto-join failed:", err);
+      } finally {
+        if (isMounted) {
+          clearPendingInviteCode();
+          setActiveInviteCode(null);
+        }
+      }
+    }
+
+    performAutoJoin();
+    return () => {
+      isMounted = false;
+    };
+  }, [user, activeInviteCode]);
 
   useEffect(() => {
     if (selectedLeagueId) {
@@ -117,6 +215,7 @@ export default function App() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
+        setShowLoginScreen(false);
         try {
           // Sync user to members collection
           const memberRef = doc(db, 'members', u.uid);
@@ -154,6 +253,7 @@ export default function App() {
         }
       } else {
         setMember(null);
+        setShowLoginScreen(true);
       }
       setLoading(false);
     });
@@ -179,32 +279,72 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
 
-    // Fetch user's leagues
-    const qL = query(collection(db, 'leagues'), where('memberIds', 'array-contains', user.uid));
-    const unsubscribeL = onSnapshot(qL, (snap) => {
-      const leagueList = snap.docs.map(d => ({ id: d.id, ...d.data() } as League));
-      setLeagues(leagueList);
-      
-      // If selected league is not in the list anymore, clear it
-      if (selectedLeagueId && !leagueList.find(l => l.id === selectedLeagueId)) {
-        setSelectedLeagueId(null);
-      }
-    }, (err) => console.warn("Leagues query warning:", err));
+    let latestLeagues: League[] = [];
+    let latestMembers: Member[] = [];
 
-    return () => unsubscribeL();
-  }, [user, selectedLeagueId]);
+    const triggerRosterSync = () => {
+      if (latestLeagues.length > 0 && latestMembers.length > 0) {
+        syncLeaguesAndRosters(latestLeagues, latestMembers, user);
+      }
+    };
+
+    // Fetch all leagues
+    const qAll = collection(db, 'leagues');
+    const unsubscribeAll = onSnapshot(qAll, (snap) => {
+      const allLeagues = snap.docs.map(d => ({ id: d.id, ...d.data() } as League));
+      latestLeagues = allLeagues;
+
+      // Desired display order: Detroit Dads, Baseball Crew, Architex, others
+      const orderPriority = (name: string) => {
+        const n = (name || '').toLowerCase();
+        if (n.includes('detroit')) return 1;
+        if (n.includes('baseball')) return 2;
+        if (n.includes('architex')) return 3;
+        return 4;
+      };
+
+      const sorted = [...allLeagues].sort((a, b) => orderPriority(a.name) - orderPriority(b.name));
+      setLeagues(sorted);
+
+      // Auto-select:
+      setSelectedLeagueId(prevSelected => {
+        const current = sorted.find(l => l.id === prevSelected);
+        if (current) {
+          return prevSelected;
+        }
+        const detroit = sorted.find(l => l.name.toLowerCase().includes('detroit'));
+        if (detroit) {
+          return detroit.id;
+        }
+        if (sorted.length > 0) {
+          return sorted[0].id;
+        }
+        return null;
+      });
+
+      triggerRosterSync();
+    }, (err) => console.warn("Leagues collection query notice:", err));
+
+    // Fetch all members to support roster syncing
+    const unsubscribeMembers = onSnapshot(collection(db, 'members'), (snap) => {
+      latestMembers = snap.docs.map(d => ({ ...d.data() } as Member));
+      triggerRosterSync();
+    }, (err) => console.warn("Members collection query notice:", err));
+
+    return () => {
+      unsubscribeAll();
+      unsubscribeMembers();
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!user || !selectedLeagueId) return;
 
-    // Fetch sessions specifically for this league and sort client-side
-    const qS = query(
-      collection(db, 'sessions'), 
-      where('leagueId', '==', selectedLeagueId)
-    );
-
-    const unsubscribeS = onSnapshot(qS, (snap) => {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Session));
+    // Fetch sessions, including legacy/fallback sessions so no meetups disappear
+    const unsubscribeS = onSnapshot(collection(db, 'sessions'), (snap) => {
+      const allSessions = snap.docs.map(d => ({ id: d.id, ...d.data() } as Session));
+      const matched = allSessions.filter(s => s.leagueId === selectedLeagueId || !s.leagueId || s.leagueId === 'default-league');
+      const list = matched.length > 0 ? matched : allSessions;
       list.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       setSessions(list);
     }, (err) => console.warn("Sessions query warning:", err));
@@ -295,6 +435,31 @@ export default function App() {
           onLogout={handleLogout}
           isLoading={loading}
         />
+        {showInviteModal && activeInviteCode && (
+          <InviteLandingCard
+            inviteCode={activeInviteCode}
+            currentUser={user}
+            onJoinSuccess={(joinedLeague) => {
+              setSelectedLeagueId(joinedLeague.id);
+              setShowLoginScreen(false);
+              setShowInviteModal(false);
+              setActiveTab('calendar');
+              clearPendingInviteCode();
+              setActiveInviteCode(null);
+              setNotification({
+                title: `🎉 Welcome to ${joinedLeague.name}!`,
+                message: "You've successfully joined the league!"
+              });
+              setTimeout(() => setNotification(null), 6000);
+            }}
+            onSignInRequired={handleLogin}
+            onDismiss={() => {
+              setShowInviteModal(false);
+              clearPendingInviteCode();
+              setActiveInviteCode(null);
+            }}
+          />
+        )}
         <LegalModal
           isOpen={legalModalTab !== null}
           initialTab={legalModalTab || 'privacy'}
@@ -394,7 +559,26 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0 relative">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0 relative">
+            {/* Zoom / Density View Mode Toggle */}
+            <button 
+              onClick={() => {
+                const next = densityMode === 'compact' ? 'comfortable' : 'compact';
+                setDensityMode(next);
+                safeSetStorage('dadleague_density', next);
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                densityMode === 'compact'
+                  ? 'bg-indigo-600 text-white border-indigo-700 shadow-indigo-100'
+                  : 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100'
+              }`}
+              title={densityMode === 'compact' ? "Zoomed Out (Compact View)" : "Switch to Compact View (less scrolling)"}
+            >
+              <Minimize2 size={13} className={densityMode === 'compact' ? 'rotate-45' : ''} />
+              <span className="hidden sm:inline">{densityMode === 'compact' ? 'Zoomed Out' : 'Comfortable'}</span>
+              <span className="sm:hidden">{densityMode === 'compact' ? 'Zoom Out' : '100%'}</span>
+            </button>
+
             <button 
               onClick={() => setShowLoginScreen(true)} 
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-all cursor-pointer shadow-xs"
@@ -403,10 +587,17 @@ export default function App() {
               <LogIn size={14} /> Login Screen
             </button>
 
-            <div className="hidden md:flex items-center bg-slate-50 border border-slate-200 rounded-full px-3 py-1 mr-1">
-              <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse mr-2"></div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{activeLeague?.name}</span>
-            </div>
+            <button 
+              onClick={() => setShowLeagueSwitcher(true)}
+              className="flex items-center gap-1.5 sm:gap-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl px-2.5 sm:px-3 py-1.5 transition-all cursor-pointer shadow-xs group"
+              title="Click to switch or manage leagues"
+            >
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+              <span className="text-xs font-black uppercase tracking-tight text-indigo-900 group-hover:text-indigo-700 max-w-[110px] sm:max-w-[200px] truncate">
+                {activeLeague?.name || 'Select League'}
+              </span>
+              <ChevronDown size={14} className="text-indigo-500 transition-transform group-hover:translate-y-0.5 shrink-0" />
+            </button>
             
             <button 
               onClick={() => setShowUserMenu(!showUserMenu)}
@@ -612,7 +803,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Main Content */}
-      <main className={`max-w-4xl mx-auto p-4 lg:p-8 ${activeTab === 'chat' ? 'flex-1 overflow-hidden flex flex-col w-full' : ''}`}>
+      <main className={`max-w-4xl mx-auto px-2 sm:px-4 lg:px-8 py-2.5 sm:py-6 transition-all ${densityMode === 'compact' ? 'scale-[0.98] origin-top' : ''} ${activeTab === 'chat' ? 'flex-1 overflow-hidden flex flex-col w-full' : ''}`}>
         <AnimatePresence mode="wait">
           {activeTab === 'calendar' && (
             <motion.div 
@@ -758,6 +949,32 @@ export default function App() {
           </motion.nav>
         )}
       </AnimatePresence>
+
+      {showInviteModal && activeInviteCode && (
+        <InviteLandingCard
+          inviteCode={activeInviteCode}
+          currentUser={user}
+          onJoinSuccess={(joinedLeague) => {
+            setSelectedLeagueId(joinedLeague.id);
+            setShowLoginScreen(false);
+            setShowInviteModal(false);
+            setActiveTab('calendar');
+            clearPendingInviteCode();
+            setActiveInviteCode(null);
+            setNotification({
+              title: `🎉 Welcome to ${joinedLeague.name}!`,
+              message: "You've successfully joined the league!"
+            });
+            setTimeout(() => setNotification(null), 6000);
+          }}
+          onSignInRequired={handleLogin}
+          onDismiss={() => {
+            setShowInviteModal(false);
+            clearPendingInviteCode();
+            setActiveInviteCode(null);
+          }}
+        />
+      )}
 
       <LegalModal
         isOpen={legalModalTab !== null}

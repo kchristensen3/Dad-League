@@ -10,7 +10,7 @@ import {
   Users, 
   Sparkles, 
   CheckCircle2, 
-  Flame, 
+  HeartHandshake, 
   LogOut,
   ChevronRight,
   Award,
@@ -63,38 +63,38 @@ export default function LoginScreen({
   const features = [
     {
       icon: Calendar,
-      title: "Weekly Hangout Calendar",
-      desc: "Lock in dates, venue locations, and time slots. Real-time RSVP tracking so you know who's in.",
-      badge: "No More Group-Text Chaos"
+      title: "Shared Community Calendar",
+      desc: "Coordinate recurring meetups, venue locations, and family or dad-only events. Simple RSVP tracking so hosts know who can attend.",
+      badge: "Simple Scheduling"
     },
     {
       icon: ListTodo,
-      title: "Shared Activity Backlog",
-      desc: "Vote on what to do next: Topgolf, brisket smoke-offs, poker tournaments, go-karting, or board games.",
-      badge: "Upvote Your Favorites"
+      title: "Shared Activity Ideas",
+      desc: "Propose and vote on what to do next: Saturday coffee & bagels, golf rounds, backyard cookouts, board game nights, or local hikes.",
+      badge: "Community-Driven"
     },
     {
       icon: MessageSquare,
-      title: "Locker Room & Chat",
-      desc: "Event-specific coordination threads and a community message board for links, advice, and banter.",
-      badge: "Live Real-Time"
+      title: "Group Chat & Discussion",
+      desc: "Event-specific coordination threads and a community board for sharing recommendations, dad advice, career thoughts, and staying in touch.",
+      badge: "Real-Time Chat"
     },
     {
       icon: Award,
-      title: "Dad Stats & Leaderboard",
-      desc: "Track meetings attended, hangouts hosted, and activity ideas proposed. Bragging rights included.",
-      badge: "Zero Flake Policy"
+      title: "Community Participation",
+      desc: "Celebrate hangouts hosted, meetups attended, and ideas shared across your group. Share the load so no single dad burns out organizing.",
+      badge: "Shared Leadership"
     }
   ];
 
   const testimonials = [
     {
-      quote: "Before Dad League, we'd spend 3 weeks in a 14-person iMessage thread trying to pick a restaurant. Now we vote on ideas and it's booked.",
+      quote: "With work, kids' sports, and home life, staying connected used to feel impossible. Dad League gave our group a simple rhythm to actually get together.",
       author: "Marcus T.",
       role: "Father of 3 · Salt Lake City League"
     },
     {
-      quote: "The calendar alone saved our sanity. Everyone's busy, but having a set recurring league night makes sure we actually get together.",
+      quote: "It's tough building genuine community as an adult. Having a shared calendar and a supportive group of dads has been incredible for our families.",
       author: "David K.",
       role: "Father of 2 · Austin Chapter"
     }
@@ -127,7 +127,7 @@ export default function LoginScreen({
               DAD<span className="text-indigo-400">LEAGUE</span>
             </span>
             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mt-0.5">
-              The Hangout Platform For Dads
+              The Community Platform For Dads
             </span>
           </div>
         </div>
@@ -169,7 +169,7 @@ export default function LoginScreen({
         <div className="relative z-20 bg-indigo-950/80 border-b border-indigo-800/60 px-4 py-2.5 text-center text-xs text-indigo-200 flex flex-wrap items-center justify-center gap-3 backdrop-blur-sm">
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            Currently viewing Login Screen. You are signed in as <strong>{user.displayName || user.email}</strong>.
+            Signed in as <strong>{user.displayName || user.email}</strong>.
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -193,14 +193,14 @@ export default function LoginScreen({
       {/* Main Content Area */}
       <main className="relative z-10 max-w-5xl mx-auto px-6 py-12 lg:py-20 flex flex-col items-center text-center">
         
-        {/* League Pill */}
+        {/* Community Engagement Badge */}
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-950/90 border border-indigo-500/30 text-indigo-300 text-xs font-black uppercase tracking-wider mb-8 shadow-inner"
         >
           <Sparkles size={14} className="text-indigo-400" />
-          <span>The Official Anti-Flake System for Dads</span>
+          <span>Tools to connect and engage with your community</span>
         </motion.div>
 
         {/* Main Headline */}
@@ -210,9 +210,9 @@ export default function LoginScreen({
           transition={{ delay: 0.1 }}
           className="text-4xl sm:text-6xl lg:text-7xl font-black uppercase tracking-tight text-white max-w-4xl leading-[1.05]"
         >
-          Never Lose Touch With <br />
+          Make Time For <br />
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-sky-300 to-indigo-200">
-            The Crew Again.
+            Friendships That Matter.
           </span>
         </motion.h1>
 
@@ -223,7 +223,7 @@ export default function LoginScreen({
           transition={{ delay: 0.2 }}
           className="mt-6 text-lg sm:text-xl text-slate-300 max-w-2xl font-medium leading-relaxed"
         >
-          Dad League gives your squad a recurring calendar, an activity backlog with upvotes, locker room banter, and crystal-clear RSVPs.
+          Dad League gives fathers and friends a simple, shared platform to organize weekly hangouts, vote on ideas, and stay meaningfully connected.
         </motion.p>
 
         {/* Login Action Card */}
@@ -340,10 +340,10 @@ export default function LoginScreen({
         <section className="mt-20 w-full text-left">
           <div className="text-center max-w-xl mx-auto mb-12">
             <h2 className="text-xs font-black uppercase tracking-[0.25em] text-indigo-400 mb-2">
-              Everything Your Squad Needs
+              Everything Your Community Needs
             </h2>
             <p className="text-2xl sm:text-3xl font-black uppercase text-white tracking-tight">
-              Built Specifically For Dad Hangs
+              Built For Real Life & Fatherhood
             </p>
           </div>
 
@@ -377,34 +377,40 @@ export default function LoginScreen({
           </div>
         </section>
 
-        {/* Dad League Creed / Rules Box */}
+        {/* Community Principles / Values Box */}
         <section className="mt-16 w-full max-w-3xl bg-gradient-to-br from-slate-900 to-indigo-950/40 border border-slate-800 rounded-3xl p-8 sm:p-10 text-left relative overflow-hidden">
           <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
           
           <div className="flex items-center gap-3 mb-6">
             <div className="w-8 h-8 rounded-lg bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
-              <Flame size={18} />
+              <HeartHandshake size={18} />
             </div>
             <h3 className="text-lg font-black uppercase tracking-tight text-white">
-              The Dad League Creed
+              Our Community Principles
             </h3>
           </div>
 
           <div className="grid sm:grid-cols-3 gap-6 text-sm">
             <div className="space-y-1">
               <span className="text-indigo-400 font-mono font-black text-xs">#01</span>
-              <h4 className="font-bold text-white text-sm">Clear RSVPs</h4>
-              <p className="text-xs text-slate-400">If you say you're coming, show up. If you can't make it, decline early so bookings stay accurate.</p>
+              <h4 className="font-bold text-white text-sm">Come As You Are</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Sick kids, work deadlines, or busy seasons happen. RSVP when you can, and always know you're welcomed back without guilt.
+              </p>
             </div>
             <div className="space-y-1">
               <span className="text-indigo-400 font-mono font-black text-xs">#02</span>
-              <h4 className="font-bold text-white text-sm">Zero Work Talk</h4>
-              <p className="text-xs text-slate-400">The first 15 minutes are for catching up; after that, career talk is strictly benched.</p>
+              <h4 className="font-bold text-white text-sm">Talk About Real Life</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Career moves, parenting milestones, family wins, and everyday challenges—talk openly about what's actually happening in your life.
+              </p>
             </div>
             <div className="space-y-1">
               <span className="text-indigo-400 font-mono font-black text-xs">#03</span>
-              <h4 className="font-bold text-white text-sm">Rotate The Host</h4>
-              <p className="text-xs text-slate-400">Every dad takes turns proposing an activity and picking the meeting point.</p>
+              <h4 className="font-bold text-white text-sm">Share The Load</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Rotate hosts, pitch in on ideas, or help pick venues. When everyone shares a little ownership, community thrives naturally.
+              </p>
             </div>
           </div>
         </section>
@@ -430,7 +436,7 @@ export default function LoginScreen({
         {/* Bottom CTA */}
         <section className="mt-16 text-center space-y-4">
           <p className="text-xs font-black uppercase tracking-widest text-slate-500">
-            Ready to organize your dad crew?
+            Ready to strengthen your community?
           </p>
           <button
             onClick={user ? onEnterDashboard : handleSignInClick}
@@ -450,10 +456,10 @@ export default function LoginScreen({
           <div className="flex items-center gap-2">
             <Trophy size={14} className="text-indigo-400" />
             <span className="font-bold text-slate-400">DAD LEAGUE</span>
-            <span>— The premier hangout organizer</span>
+            <span>— Community platform for fathers & friends</span>
           </div>
           <p className="text-[11px] text-slate-600">
-            Built for dads who need a break. Real friends, real meetups.
+            Built for busy dads. Meaningful community, real friendships.
           </p>
         </div>
       </footer>

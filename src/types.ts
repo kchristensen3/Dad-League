@@ -6,6 +6,8 @@ export interface League {
   ownerId: string;
   inviteCode: string;
   createdAt: string;
+  inviteTaps?: number;
+  inviteJoins?: number;
 }
 
 export interface Member {
@@ -32,6 +34,10 @@ export interface Activity {
   suggestedDate?: string;
   votes: string[]; // User IDs
   createdAt: string;
+  lastUpvotedAt?: string;
+  archived?: boolean;
+  archivedAt?: string;
+  status?: 'active' | 'archived';
 }
 
 export interface Session {
@@ -48,6 +54,7 @@ export interface Session {
   attendees: string[];
   declined: string[];
   status: 'planned' | 'completed' | 'cancelled';
+  url?: string;
 }
 
 export interface Message {

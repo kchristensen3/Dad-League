@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Check, Copy, Share2 } from 'lucide-react';
 import { League } from '../types';
+import { getUniversalInviteUrl } from '../lib/inviteUtils';
 
 interface AboutProps {
   league?: League;
@@ -10,19 +11,32 @@ interface AboutProps {
 export default function About({ league, onAccept }: AboutProps) {
   const [copied, setCopied] = useState(false);
   const inviteCode = league?.inviteCode || 'WELCOME-TO-DADLEAGUE';
+  const inviteUrl = getUniversalInviteUrl(inviteCode);
 
-  const handleCopy = () => {
-    const inviteUrl = `${window.location.origin}?invite=${inviteCode}`;
+  const handleCopy = async () => {
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `Join ${league?.name || 'Dad League'}`,
+          text: `You're invited to join ${league?.name || 'Dad League'}! Tap to auto-join:`,
+          url: inviteUrl
+        });
+        return;
+      } catch (err) {
+        // Fallback to clipboard
+      }
+    }
+
     navigator.clipboard.writeText(inviteUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 3000);
   };
 
   const goals = [
-    "Make time to have fun and hang with a community",
-    "Try new activities and get out of the dad-rut",
-    "Help each other out",
-    "No pressure. Just dads hanging out."
+    "Make intentional time to connect and engage with your community",
+    "Try new activities and break out of the daily routine",
+    "Support each other through family, career, and life transitions",
+    "A welcoming, low-pressure space for fathers"
   ];
 
   return (
@@ -30,8 +44,8 @@ export default function About({ league, onAccept }: AboutProps) {
       <section className="space-y-4 text-center">
         <h2 className="text-5xl font-black tracking-tight uppercase leading-tight text-slate-800">What is<br/>Dad League?</h2>
         <p className="text-slate-500 text-lg leading-relaxed">
-          The Dad League is a simple commitment to getting out once a week. 
-          No complicated organization, just a crew of dads making time for themselves.
+          Dad League is a simple commitment to getting together on a regular rhythm. 
+          No complicated logistics—just dads making intentional time for friendship and community.
         </p>
         
         {onAccept && (
@@ -65,8 +79,8 @@ export default function About({ league, onAccept }: AboutProps) {
       <section className="space-y-6">
         <div className="bg-indigo-600 rounded-2xl p-8 shadow-xl shadow-indigo-100 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
           <div className="flex-1">
-            <h3 className="text-xl font-black text-white uppercase tracking-tight">Need a recruit?</h3>
-            <p className="text-indigo-100 font-medium mt-1">Invite a fellow dad to join the league.</p>
+            <h3 className="text-xl font-black text-white uppercase tracking-tight">Invite Another Dad</h3>
+            <p className="text-indigo-100 font-medium mt-1">Share the invite link with a fellow dad in your neighborhood or circle.</p>
             <div className="mt-4 inline-flex items-center gap-2 bg-indigo-700/50 border border-indigo-500/50 px-4 py-2 rounded-lg text-indigo-100 font-mono text-sm leading-none">
               <span>{inviteCode}</span>
             </div>

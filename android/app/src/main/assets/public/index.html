@@ -15,22 +15,32 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="apple-touch-startup-image" href="/splash.png" />
     <link rel="icon" type="image/png" href="/icon-192.png" />
-    <script type="module" crossorigin src="/assets/index-CtyGRWTo.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-Bgs8HMvP.css">
+    <script>
+      // Clean up any stale service workers or caches that could cause blank screens
+      try {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            for (let reg of regs) {
+              reg.unregister();
+            }
+          });
+        }
+        if ('caches' in window) {
+          caches.keys().then(function(names) {
+            for (let name of names) {
+              caches.delete(name);
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Cache purge error:', e);
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-CRqLNz6G.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CUIbdEdu.css">
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').then(registration => {
-            console.log('SW registered: ', registration);
-          }).catch(registrationError => {
-            console.log('SW registration failed: ', registrationError);
-          });
-        });
-      }
-    </script>
   </body>
 </html>
 

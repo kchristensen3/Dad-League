@@ -97,6 +97,35 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "postId", "authorId", "text", "createdAt"]
+    },
+    "Poll": {
+      "title": "Poll",
+      "description": "A date or time poll for planning an event.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "leagueId": { "type": "string" },
+        "title": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdByName": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "leagueId", "title", "createdBy"]
+    },
+    "Availability": {
+      "title": "Availability",
+      "description": "Member availability slots for the heatmap.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "leagueId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "slots": { "type": "array", "items": { "type": "string" } },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "leagueId", "userId"]
     }
   },
   "firestore": {
@@ -127,6 +156,14 @@
     "/posts/{postId}/comments/{commentId}": {
       "schema": "Comment",
       "description": "Comments on posts"
+    },
+    "/polls/{pollId}": {
+      "schema": "Poll",
+      "description": "Date & time meetup polls"
+    },
+    "/availability/{availId}": {
+      "schema": "Availability",
+      "description": "Member weekly availability slots"
     }
   }
 }

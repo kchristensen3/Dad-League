@@ -28,6 +28,20 @@ service cloud.firestore {
       return resource.data;
     }
 
+    function isLeagueMember(leagueId) {
+      return isSignedIn() && 
+             leagueId is string &&
+             (
+               leagueId == 'default-league' ||
+               (exists(/databases/$(database)/documents/members/$(request.auth.uid)) &&
+                'leagueIds' in get(/databases/$(database)/documents/members/$(request.auth.uid)).data &&
+                leagueId in get(/databases/$(database)/documents/members/$(request.auth.uid)).data.leagueIds) ||
+               (exists(/databases/$(database)/documents/leagues/$(leagueId)) &&
+                'memberIds' in get(/databases/$(database)/documents/leagues/$(leagueId)).data &&
+                request.auth.uid in get(/databases/$(database)/documents/leagues/$(leagueId)).data.memberIds)
+             );
+    }
+
     // Validation Blueprints
     function isValidMember(data) {
       return data.keys().hasAll(['userId', 'displayName', 'email']) &&
@@ -37,12 +51,13 @@ service cloud.firestore {
     }
 
     function isValidActivity(data) {
-      return data.keys().hasAll(['title', 'suggestedBy', 'votes', 'leagueId', 'category']) &&
+      return data.keys().hasAll(['title', 'suggestedBy', 'votes', 'leagueId', 'category', 'status']) &&
              data.title is string && data.title.size() <= 200 &&
              data.suggestedBy is string &&
              data.leagueId is string &&
              (data.votes is list) &&
-             data.category is string;
+             data.category is string &&
+             data.status in ['active', 'archived'];
     }
 
     function isValidSession(data) {
@@ -80,9 +95,9 @@ service cloud.firestore {
              data.text is string && data.text.size() <= 10000;
     }
 
-    // Health / Connection check
-    match /test/{docId} {
-      allow read: if true;
+    // Helper for legacy data migration in rules
+    function effectiveLeagueId(data) {
+      return 'leagueId' in data ? data.leagueId : 'default-league';
     }
 
     match /leagues/{leagueId} {
@@ -90,65 +105,104 @@ service cloud.firestore {
       allow list: if isSignedIn();
       allow create: if isSignedIn() && isValidId(leagueId);
       allow update: if isSignedIn() && (
-        // Joining with invite code
-        (incoming().diff(existing()).affectedKeys().hasOnly(['memberIds']) && 
-         request.auth.uid in incoming().memberIds) ||
-        // Owner management
-        (isOwner(existing().ownerId))
+        incoming().diff(existing()).affectedKeys().hasOnly(['inviteTaps']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['memberIds']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'inviteJoins']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'inviteTaps']) ||
+        (isOwner(existing().ownerId) && incoming().ownerId == existing().ownerId)
       );
     }
 
+    function memberLeagues() {
+      let data = get(/databases/$(database)/documents/members/$(request.auth.uid)).data;
+      return 'leagueIds' in data ? data.leagueIds : ['default-league'];
+    }
+
+    function isInSameLeague(data) {
+      let myLeagues = memberLeagues();
+      let theirLeagues = 'leagueIds' in data ? data.leagueIds : ['default-league'];
+      return myLeagues.hasAny(theirLeagues);
+    }
+
     match /members/{userId} {
-      allow get: if isSignedIn();
+      allow get: if isSignedIn() && (
+        userId == request.auth.uid ||
+        // Check if we share a league
+        (exists(/databases/$(database)/documents/members/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/members/$(request.auth.uid)).data.leagueIds.hasAny(existing().leagueIds)) ||
+        true // Allow league mates lookup
+      );
       allow list: if isSignedIn();
-      allow create: if isSignedIn() && isOwner(userId) && isValidMember(incoming());
-      allow update: if isSignedIn() && isOwner(userId);
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        (isOwner(userId) && (incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'availability', 'location', 'interests', 'leagueIds']))) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['leagueIds'])
+      );
       allow delete: if isSignedIn() && isOwner(userId);
     }
 
     match /activities/{activityId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(activityId) && isValidActivity(incoming());
-      allow update: if isSignedIn() && (
-        // Voting toggle
-        (incoming().diff(existing()).affectedKeys().hasOnly(['votes'])) ||
+      allow read: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing()));
+      allow create: if isSignedIn() && isValidId(activityId) && isValidActivity(incoming()) && isLeagueMember(incoming().leagueId) && incoming().suggestedBy == request.auth.uid;
+      allow update: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing())) && (
+        // Voting toggle & archive updates
+        (incoming().diff(existing()).affectedKeys().hasOnly(['votes', 'lastUpvotedAt', 'status', 'archived', 'archivedAt'])) ||
         // Owner edit
-        (isOwner(existing().suggestedBy))
+        (isOwner(existing().suggestedBy) && isValidActivity(incoming()) && incoming().diff(existing()).affectedKeys().hasAny(['title', 'description', 'category', 'location', 'status', 'archived', 'lastUpvotedAt', 'updatedAt', 'archivedAt']))
       );
       allow delete: if isSignedIn() && isOwner(existing().suggestedBy);
     }
 
     match /sessions/{sessionId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(sessionId) && isValidSession(incoming());
-      allow update: if isSignedIn() && (
-        // RSVP toggle
+      allow read: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing()));
+      allow create: if isSignedIn() && isValidId(sessionId) && isValidSession(incoming()) && isLeagueMember(incoming().leagueId);
+      allow update: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing())) && (
+        // Action: RSVP
         (incoming().diff(existing()).affectedKeys().hasOnly(['attendees', 'declined'])) ||
-        // Host edit
-        (isOwner(existing().hostId))
+        // Action: Host Edit
+        (isOwner(existing().hostId) && 
+         incoming().diff(existing()).affectedKeys().hasAny(['date', 'activityName', 'activityType', 'location', 'description', 'status', 'updatedAt']))
       );
       allow delete: if isSignedIn() && isOwner(existing().hostId);
     }
 
     match /posts/{postId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(postId) && isValidPost(incoming());
-      allow update: if isSignedIn() && (
+      allow read: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing()));
+      allow create: if isSignedIn() && isValidId(postId) && isValidPost(incoming()) && isLeagueMember(incoming().leagueId);
+      allow update: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing())) && (
+        // Like action
         (incoming().diff(existing()).affectedKeys().hasOnly(['likes'])) ||
-        (isOwner(existing().authorId))
+        // Author edit
+        (isOwner(existing().authorId) && (incoming().diff(existing()).affectedKeys().hasAny(['content', 'imageUrl', 'linkPreview'])))
       );
       allow delete: if isSignedIn() && isOwner(existing().authorId);
 
       match /comments/{commentId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn() && isValidId(commentId) && isValidComment(incoming());
+        allow read: if isSignedIn() && (
+          ('leagueId' in existing() && isLeagueMember(existing().leagueId)) ||
+          (!('leagueId' in existing()) && isLeagueMember(effectiveLeagueId(get(/databases/$(database)/documents/posts/$(postId)).data)))
+        );
+        allow create: if isSignedIn() && isValidId(commentId) && isValidComment(incoming()) && isLeagueMember(incoming().leagueId);
         allow delete: if isSignedIn() && isOwner(existing().authorId);
       }
     }
 
     match /messages/{messageId} {
-      allow read: if isSignedIn(); 
-      allow create: if isSignedIn() && isValidId(messageId) && isValidMessage(incoming());
+      allow read: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing())); 
+      allow create: if isSignedIn() && isValidId(messageId) && isValidMessage(incoming()) && isLeagueMember(incoming().leagueId);
+    }
+
+    match /polls/{pollId} {
+      allow read: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing()));
+      allow create: if isSignedIn() && isValidId(pollId) && isLeagueMember(incoming().leagueId) && incoming().createdBy == request.auth.uid;
+      allow update: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing()));
+      allow delete: if isSignedIn() && (isOwner(existing().createdBy) || isLeagueMember(effectiveLeagueId(existing())));
+    }
+
+    match /availability/{availId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && (incoming().userId == request.auth.uid);
+      allow delete: if isSignedIn() && (existing().userId == request.auth.uid);
     }
   }
 }

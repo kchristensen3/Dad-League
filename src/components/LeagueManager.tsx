@@ -1,11 +1,13 @@
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { User } from 'firebase/auth';
-import { collection, addDoc, query, where, getDocs, updateDoc, arrayUnion, doc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 import { League } from '../types';
-import { Plus, Users, ArrowRight, Shield, LayoutGrid, X } from 'lucide-react';
+import { autoJoinLeagueWithCode, getStoredInviteCode, getInviteCodeFromUrl, clearPendingInviteCode } from '../lib/inviteUtils';
+import { Plus, Users, ArrowRight, Shield, LayoutGrid, X, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { LEAGUE_ROSTER_DEFS } from '../lib/rosterSync';
 
 interface LeagueManagerProps {
   user: User;
@@ -18,8 +20,16 @@ export default function LeagueManager({ user, onLeagueSelected, leagues }: Leagu
   const [isJoining, setIsJoining] = useState(false);
   const [leagueName, setLeagueName] = useState('');
   const [leagueDesc, setLeagueDesc] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
+  const [inviteCode, setInviteCode] = useState(() => getStoredInviteCode() || getInviteCodeFromUrl() || '');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const pending = getStoredInviteCode() || getInviteCodeFromUrl();
+    if (pending) {
+      setInviteCode(pending);
+      setIsJoining(true);
+    }
+  }, []);
 
   const generateInviteCode = () => {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -66,28 +76,50 @@ export default function LeagueManager({ user, onLeagueSelected, leagues }: Leagu
 
     setLoading(true);
     try {
-      const q = query(collection(db, 'leagues'), where('inviteCode', '==', inviteCode.trim().toUpperCase()));
-      const snap = await getDocs(q);
-      
-      if (snap.empty) {
-        alert("League not found with that code.");
-        return;
+      const res = await autoJoinLeagueWithCode(user, inviteCode.trim());
+      if (res.success && res.league) {
+        clearPendingInviteCode();
+        onLeagueSelected(res.league.id);
+      } else {
+        alert(res.error || "League not found with that code.");
       }
-
-      const leagueDoc = snap.docs[0];
-      const leagueId = leagueDoc.id;
-
-      await updateDoc(doc(db, 'leagues', leagueId), {
-        memberIds: arrayUnion(user.uid)
-      });
-
-      await updateDoc(doc(db, 'members', user.uid), {
-        leagueIds: arrayUnion(leagueId)
-      });
-
-      onLeagueSelected(leagueId);
     } catch (err) {
       console.error("Error joining league:", err);
+      alert("Error joining league. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRestoreStarterLeagues = async () => {
+    setLoading(true);
+    try {
+      const createdIds: string[] = [];
+      for (const def of LEAGUE_ROSTER_DEFS) {
+        const leagueData = {
+          name: def.defaultName,
+          description: def.defaultDesc,
+          ownerId: user.uid,
+          memberIds: [user.uid],
+          inviteCode: def.inviteCode,
+          createdAt: new Date().toISOString(),
+          inviteTaps: 0,
+          inviteJoins: 1
+        };
+        const docRef = await addDoc(collection(db, 'leagues'), leagueData);
+        createdIds.push(docRef.id);
+      }
+
+      await updateDoc(doc(db, 'members', user.uid), {
+        leagueIds: arrayUnion(...createdIds)
+      });
+
+      if (createdIds.length > 0) {
+        onLeagueSelected(createdIds[0]);
+      }
+    } catch (e) {
+      console.error("Error restoring starter leagues:", e);
+      alert("Could not restore starter leagues. Please try creating one.");
     } finally {
       setLoading(false);
     }
@@ -105,24 +137,33 @@ export default function LeagueManager({ user, onLeagueSelected, leagues }: Leagu
             <Users size={32} />
           </div>
           <div className="space-y-4">
-            <h2 className="text-3xl font-black tracking-tight text-slate-800 uppercase">No Leagues Yet</h2>
+            <h2 className="text-3xl font-black tracking-tight text-slate-800 uppercase">No Leagues Found</h2>
             <p className="text-slate-500 font-medium leading-relaxed">
-              Dad League is better with the crew. Create your own circle or join an existing one.
+              If your leagues were previously set up or you're starting fresh, click below to restore your circles or create a new league.
             </p>
           </div>
           <div className="grid grid-cols-1 gap-3 pt-4">
             <button 
-              onClick={() => setIsCreating(true)}
-              className="py-4 bg-indigo-600 text-white rounded-xl font-black text-lg hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all flex items-center justify-center gap-3 active:scale-95 transition-all uppercase tracking-tight"
+              onClick={handleRestoreStarterLeagues}
+              disabled={loading}
+              className="py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-sm uppercase tracking-wider shadow-xl shadow-indigo-100 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
             >
-              <Plus size={24} /> Create a League
+              <Sparkles size={18} /> Restore Circles (Detroit Dads, Baseball Crew, Architex)
             </button>
-            <button 
-              onClick={() => setIsJoining(true)}
-              className="py-4 bg-white text-slate-700 border-2 border-slate-200 rounded-xl font-black text-lg hover:bg-slate-50 transition-all flex items-center justify-center gap-3 active:scale-95 uppercase tracking-tight"
-            >
-              <ArrowRight size={24} /> Enter Invite Code
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setIsCreating(true)}
+                className="flex-1 py-3.5 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-slate-800 transition-all"
+              >
+                <Plus size={16} className="inline mr-1" /> Create League
+              </button>
+              <button 
+                onClick={() => setIsJoining(true)}
+                className="flex-1 py-3.5 bg-white text-slate-700 border-2 border-slate-200 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-slate-50 transition-all"
+              >
+                <ArrowRight size={16} className="inline mr-1" /> Enter Code
+              </button>
+            </div>
           </div>
         </motion.div>
       </div>

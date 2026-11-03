@@ -8,7 +8,9 @@
 	},
 	"ios": {
 		"contentInset": "automatic",
-		"scheme": "Dad League"
+		"scheme": "dadleague"
 	},
-	"packageClassList": []
+	"packageClassList": [
+		"AppPlugin"
+	]
 }

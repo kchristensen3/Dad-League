@@ -47,7 +47,8 @@ service cloud.firestore {
       return data.keys().hasAll(['userId', 'displayName', 'email']) &&
              data.userId == request.auth.uid &&
              data.displayName is string && data.displayName.size() <= 100 &&
-             data.email is string && data.email.size() <= 200;
+             data.email is string && data.email.size() <= 200 &&
+             (!('notificationPreferences' in data) || data.notificationPreferences is map);
     }
 
     function isValidActivity(data) {
@@ -67,7 +68,8 @@ service cloud.firestore {
              data.leagueId is string &&
              data.date is string &&
              data.attendees is list && data.declined is list &&
-             data.status in ['planned', 'completed', 'cancelled'];
+             data.status in ['planned', 'completed', 'cancelled'] &&
+             (!('url' in data) || data.url == null || (data.url is string && data.url.size() <= 2048));
     }
 
     function isValidPost(data) {
@@ -109,6 +111,8 @@ service cloud.firestore {
         incoming().diff(existing()).affectedKeys().hasOnly(['memberIds']) ||
         incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'inviteJoins']) ||
         incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'inviteTaps']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['description']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description']) ||
         (isOwner(existing().ownerId) && incoming().ownerId == existing().ownerId)
       );
     }
@@ -135,7 +139,7 @@ service cloud.firestore {
       allow list: if isSignedIn();
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (
-        (isOwner(userId) && (incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'availability', 'location', 'interests', 'leagueIds']))) ||
+        (isOwner(userId) && (incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'availability', 'location', 'interests', 'leagueIds', 'notificationPreferences', 'updatedAt']))) ||
         incoming().diff(existing()).affectedKeys().hasOnly(['leagueIds'])
       );
       allow delete: if isSignedIn() && isOwner(userId);
@@ -159,9 +163,8 @@ service cloud.firestore {
       allow update: if isSignedIn() && isLeagueMember(effectiveLeagueId(existing())) && (
         // Action: RSVP
         (incoming().diff(existing()).affectedKeys().hasOnly(['attendees', 'declined'])) ||
-        // Action: Host Edit
-        (isOwner(existing().hostId) && 
-         incoming().diff(existing()).affectedKeys().hasAny(['date', 'activityName', 'activityType', 'location', 'description', 'status', 'updatedAt']))
+        // Action: Host or Member Edit
+        (incoming().diff(existing()).affectedKeys().hasAny(['date', 'activityName', 'activityType', 'location', 'description', 'status', 'updatedAt', 'url', 'hostId', 'hostName']))
       );
       allow delete: if isSignedIn() && isOwner(existing().hostId);
     }

@@ -28,6 +28,7 @@ import { auth, db } from './lib/firebase';
 import { handleFirestoreError, OperationType } from './lib/firestoreUtils';
 import { Session, Activity, Member, League } from './types';
 import { syncLeaguesAndRosters } from './lib/rosterSync';
+import { sendDeviceNotification } from './lib/notificationService';
 import { 
   Calendar as CalendarIcon, 
   MessageSquare, 
@@ -45,7 +46,8 @@ import {
   ChevronDown,
   ShieldCheck,
   Download,
-  Minimize2
+  Bell,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -102,7 +104,12 @@ export default function App() {
     return 'about';
   });
   const [loading, setLoading] = useState(true);
-  const [notification, setNotification] = useState<{ title: string, message: string } | null>(null);
+  const [notification, setNotification] = useState<{ 
+    title: string; 
+    message: string; 
+    targetTab?: string; 
+    actionLabel?: string; 
+  } | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState('general');
   const [isScrolled, setIsScrolled] = useState(false);
@@ -111,9 +118,6 @@ export default function App() {
   const [legalModalTab, setLegalModalTab] = useState<'privacy' | 'terms' | null>(null);
   const [activeInviteCode, setActiveInviteCode] = useState<string | null>(() => getInviteCodeFromUrl() || getStoredInviteCode());
   const [showInviteModal, setShowInviteModal] = useState<boolean>(() => Boolean(getInviteCodeFromUrl()));
-  const [densityMode, setDensityMode] = useState<'compact' | 'comfortable'>(() => {
-    return (safeGetStorage('dadleague_density') as 'compact' | 'comfortable') || 'compact';
-  });
 
   // 1. Detect URL invite codes and Capacitor Native App deep links
   useEffect(() => {
@@ -349,42 +353,173 @@ export default function App() {
       setSessions(list);
     }, (err) => console.warn("Sessions query warning:", err));
 
-    // Listener for NEW sessions (push notification feel)
+    // 1. Listener for NEW sessions (Scheduled Events)
     const qNewSessions = query(
       collection(db, 'sessions'), 
       where('leagueId', '==', selectedLeagueId),
-      limit(5)
+      limit(10)
     );
-    let initialLoad = true;
-    
+    let initialSessionsLoad = true;
     const unsubscribeSessions = onSnapshot(qNewSessions, (snap) => {
-      if (initialLoad) {
-        initialLoad = false;
+      if (initialSessionsLoad) {
+        initialSessionsLoad = false;
         return;
       }
       
       snap.docChanges().forEach((change) => {
         if (change.type === "added") {
           const data = change.doc.data();
-          const title = `New Event: ${data.activityName}`;
-          const message = `Hosted by ${data.hostName} on ${new Date(data.date).toLocaleDateString()}. RSVP now!`;
+          if (data.hostId && data.hostId === user.uid) return;
+
+          const title = `📅 New Event: ${data.activityName}`;
+          const message = `Hosted by ${data.hostName || 'a dad'} on ${data.date ? new Date(data.date).toLocaleDateString() : 'an upcoming date'}. RSVP now!`;
           
-          setNotification({ title, message });
-          
-          if ("Notification" in window && Notification.permission === "granted") {
-            new Notification(title, { body: message, icon: '/favicon.ico' });
-          }
-          
+          sendDeviceNotification(title, {
+            body: message,
+            category: 'events',
+            userPrefs: member?.notificationPreferences,
+            playSound: true
+          });
+
+          setNotification({ 
+            title, 
+            message,
+            targetTab: 'calendar',
+            actionLabel: 'View & RSVP'
+          });
           setTimeout(() => setNotification(null), 8000);
         }
       });
     }, (err) => console.warn("New events listener warning:", err));
 
+    // 2. Listener for NEW chat messages
+    const qNewMessages = query(
+      collection(db, 'messages'),
+      where('leagueId', '==', selectedLeagueId),
+      limit(10)
+    );
+    let initialMessagesLoad = true;
+    const unsubscribeMessages = onSnapshot(qNewMessages, (snap) => {
+      if (initialMessagesLoad) {
+        initialMessagesLoad = false;
+        return;
+      }
+
+      snap.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const data = change.doc.data();
+          if (data.senderId === user.uid) return;
+
+          const sender = data.senderName || 'A Dad';
+          const title = `💬 ${sender} in Chat`;
+          const rawText = data.text || '';
+          const message = rawText.length > 80 ? rawText.slice(0, 80) + '...' : rawText;
+
+          sendDeviceNotification(title, {
+            body: message,
+            category: 'messages',
+            userPrefs: member?.notificationPreferences,
+            playSound: true
+          });
+
+          setNotification({
+            title,
+            message,
+            targetTab: 'chat',
+            actionLabel: 'Open Chat'
+          });
+          setTimeout(() => setNotification(null), 7000);
+        }
+      });
+    }, (err) => console.warn("New messages listener warning:", err));
+
+    // 3. Listener for NEW board posts
+    const qNewPosts = query(
+      collection(db, 'posts'),
+      where('leagueId', '==', selectedLeagueId),
+      limit(10)
+    );
+    let initialPostsLoad = true;
+    const unsubscribePosts = onSnapshot(qNewPosts, (snap) => {
+      if (initialPostsLoad) {
+        initialPostsLoad = false;
+        return;
+      }
+
+      snap.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const data = change.doc.data();
+          if (data.authorId === user.uid) return;
+
+          const title = `📋 New Board Post: ${data.title || 'Discussion'}`;
+          const rawContent = data.content || '';
+          const message = `Posted by ${data.authorName || 'a member'}: ${rawContent.slice(0, 80)}...`;
+
+          sendDeviceNotification(title, {
+            body: message,
+            category: 'boardPosts',
+            userPrefs: member?.notificationPreferences,
+            playSound: true
+          });
+
+          setNotification({
+            title,
+            message,
+            targetTab: 'board',
+            actionLabel: 'Read Post'
+          });
+          setTimeout(() => setNotification(null), 8000);
+        }
+      });
+    }, (err) => console.warn("New posts listener warning:", err));
+
+    // 4. Listener for NEW backlog ideas
+    const qNewIdeas = query(
+      collection(db, 'activities'),
+      where('leagueId', '==', selectedLeagueId),
+      limit(10)
+    );
+    let initialIdeasLoad = true;
+    const unsubscribeIdeas = onSnapshot(qNewIdeas, (snap) => {
+      if (initialIdeasLoad) {
+        initialIdeasLoad = false;
+        return;
+      }
+
+      snap.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const data = change.doc.data();
+          if (data.suggestedBy === user.uid) return;
+
+          const title = `💡 New Idea: ${data.title}`;
+          const message = `Suggested by ${data.suggestedByName || 'a dad'}. Upvote it in the backlog!`;
+
+          sendDeviceNotification(title, {
+            body: message,
+            category: 'ideas',
+            userPrefs: member?.notificationPreferences,
+            playSound: true
+          });
+
+          setNotification({
+            title,
+            message,
+            targetTab: 'backlog',
+            actionLabel: 'View Idea'
+          });
+          setTimeout(() => setNotification(null), 8000);
+        }
+      });
+    }, (err) => console.warn("New ideas listener warning:", err));
+
     return () => {
       unsubscribeS();
       unsubscribeSessions();
+      unsubscribeMessages();
+      unsubscribePosts();
+      unsubscribeIdeas();
     };
-  }, [user, selectedLeagueId]);
+  }, [user, selectedLeagueId, member?.notificationPreferences]);
 
   const activeLeague = leagues.find(l => l.id === selectedLeagueId);
 
@@ -509,30 +644,39 @@ export default function App() {
   ];
 
   return (
-    <div className={`min-h-screen bg-slate-100 text-slate-900 font-sans ${activeTab === 'chat' ? 'h-screen flex flex-col overflow-hidden' : 'pb-24'}`}>
+    <div className={`min-h-screen bg-slate-100 text-slate-900 font-sans w-full max-w-full overflow-x-hidden ${activeTab === 'chat' ? 'h-screen flex flex-col overflow-hidden' : 'pb-24'}`}>
       {/* Toast Notification */}
       <AnimatePresence>
         {notification && (
           <motion.div
             initial={{ opacity: 0, y: -100, x: '-50%' }}
-            animate={{ opacity: 1, y: 20, x: '-50%' }}
+            animate={{ opacity: 1, y: 16, x: '-50%' }}
             exit={{ opacity: 0, y: -100, x: '-50%' }}
             className="fixed top-0 left-1/2 z-[100] w-full max-w-sm px-4"
           >
-            <div className="bg-slate-900 text-white p-4 rounded-3xl shadow-2xl border border-slate-700 flex flex-col gap-1 items-center text-center">
-              <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center mb-1 text-slate-600">
-                <CalendarIcon size={20} />
+            <div className="bg-slate-900/95 backdrop-blur-md text-white p-4 rounded-3xl shadow-2xl border border-slate-700/80 flex flex-col gap-1 items-center text-center relative">
+              <button 
+                onClick={() => setNotification(null)}
+                className="absolute top-3 right-3 text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Dismiss"
+              >
+                <X size={14} />
+              </button>
+              <div className="w-9 h-9 bg-indigo-500/20 text-indigo-400 rounded-xl flex items-center justify-center mb-1 border border-indigo-500/30">
+                <Bell size={18} />
               </div>
-              <h4 className="font-black uppercase tracking-tight text-lg">{notification.title}</h4>
-              <p className="text-slate-400 text-xs font-bold leading-relaxed">{notification.message}</p>
+              <h4 className="font-black uppercase tracking-tight text-sm text-white">{notification.title}</h4>
+              <p className="text-slate-300 text-xs font-medium leading-relaxed max-w-xs">{notification.message}</p>
               <button 
                 onClick={() => {
-                  setActiveTab('calendar');
+                  if (notification.targetTab) {
+                    setActiveTab(notification.targetTab);
+                  }
                   setNotification(null);
                 }}
-                className="mt-2 text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300"
+                className="mt-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
               >
-                View & RSVP
+                {notification.actionLabel || 'View Now'}
               </button>
             </div>
           </motion.div>
@@ -540,15 +684,15 @@ export default function App() {
       </AnimatePresence>
 
       {/* Header */}
-      <header className={`sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 transition-all duration-300 ${isScrolled ? 'py-2 px-4 shadow-md' : 'py-4 px-6 shadow-sm'}`}>
-        <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="flex items-center gap-3 group px-1">
-              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200 shadow-lg -rotate-3 transition-transform group-hover:rotate-0 duration-300">
-                <Trophy size={20} className="text-white rotate-3 group-hover:rotate-0 transition-transform" />
+      <header className={`sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 transition-all duration-300 ${isScrolled ? 'py-2 px-3 sm:px-4 shadow-md' : 'py-3 sm:py-4 px-3 sm:px-6 shadow-sm'}`}>
+        <div className="max-w-4xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 group px-1">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200 shadow-lg -rotate-3 transition-transform group-hover:rotate-0 duration-300">
+                <Trophy size={18} className="text-white rotate-3 group-hover:rotate-0 transition-transform sm:w-5 sm:h-5" />
               </div>
               <div className="flex flex-col">
-                <span className="text-xl font-black uppercase tracking-tighter leading-none">
+                <span className="text-lg sm:text-xl font-black uppercase tracking-tighter leading-none">
                   Dad<span className="text-indigo-600">League</span>
                 </span>
                 <div className="flex items-center gap-1.5 mt-0.5">
@@ -560,25 +704,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0 relative">
-            {/* Zoom / Density View Mode Toggle */}
-            <button 
-              onClick={() => {
-                const next = densityMode === 'compact' ? 'comfortable' : 'compact';
-                setDensityMode(next);
-                safeSetStorage('dadleague_density', next);
-              }}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-xs ${
-                densityMode === 'compact'
-                  ? 'bg-indigo-600 text-white border-indigo-700 shadow-indigo-100'
-                  : 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100'
-              }`}
-              title={densityMode === 'compact' ? "Zoomed Out (Compact View)" : "Switch to Compact View (less scrolling)"}
-            >
-              <Minimize2 size={13} className={densityMode === 'compact' ? 'rotate-45' : ''} />
-              <span className="hidden sm:inline">{densityMode === 'compact' ? 'Zoomed Out' : 'Comfortable'}</span>
-              <span className="sm:hidden">{densityMode === 'compact' ? 'Zoom Out' : '100%'}</span>
-            </button>
-
             <button 
               onClick={() => setShowLoginScreen(true)} 
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-all cursor-pointer shadow-xs"
@@ -605,7 +730,7 @@ export default function App() {
             >
               <img 
                 src={user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} 
-                className={`${isScrolled ? 'w-8 h-8' : 'w-10 h-10'} rounded-full shadow-md object-cover`} 
+                className={`${isScrolled ? 'w-8 h-8' : 'w-9 h-9 sm:w-10 sm:h-10'} rounded-full shadow-md object-cover`} 
                 alt="Profile" 
                 referrerPolicy="no-referrer"
               />
@@ -803,7 +928,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Main Content */}
-      <main className={`max-w-4xl mx-auto px-2 sm:px-4 lg:px-8 py-2.5 sm:py-6 transition-all ${densityMode === 'compact' ? 'scale-[0.98] origin-top' : ''} ${activeTab === 'chat' ? 'flex-1 overflow-hidden flex flex-col w-full' : ''}`}>
+      <main className={`w-full max-w-4xl mx-auto px-2 sm:px-4 lg:px-8 py-2.5 sm:py-6 transition-all ${activeTab === 'chat' ? 'flex-1 overflow-hidden flex flex-col w-full' : ''}`}>
         <AnimatePresence mode="wait">
           {activeTab === 'calendar' && (
             <motion.div 

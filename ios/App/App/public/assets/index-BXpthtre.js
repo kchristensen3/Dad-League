@@ -34938,6 +34938,8 @@ const firestoreDatabaseId = "ai-studio-58f40d57-a77c-4b62-b232-af55a825635f";
 const storageBucket = "gen-lang-client-0656929403.firebasestorage.app";
 const messagingSenderId = "202001816410";
 const measurementId = "";
+const oAuthClientId = "202001816410-boeovgh9q9nk5005dsb14pcj116rk9fb.apps.googleusercontent.com";
+const recaptchaSiteKey = "";
 const firebaseConfig = {
   projectId,
   appId,
@@ -34946,7 +34948,9 @@ const firebaseConfig = {
   firestoreDatabaseId,
   storageBucket,
   messagingSenderId,
-  measurementId
+  measurementId,
+  oAuthClientId,
+  recaptchaSiteKey
 };
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -35150,6 +35154,113 @@ async function syncLeaguesAndRosters(existingLeagues, existingMembers, currentUs
     syncInProgress = false;
   }
 }
+const DEFAULT_NOTIFICATION_PREFERENCES = {
+  enabled: true,
+  messages: true,
+  boardPosts: true,
+  ideas: true,
+  events: true
+};
+const STORAGE_KEY = "dadleague_notification_preferences";
+function getStoredPreferences() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return DEFAULT_NOTIFICATION_PREFERENCES;
+    const parsed = JSON.parse(raw);
+    return {
+      enabled: parsed.enabled ?? true,
+      messages: parsed.messages ?? true,
+      boardPosts: parsed.boardPosts ?? true,
+      ideas: parsed.ideas ?? true,
+      events: parsed.events ?? true
+    };
+  } catch {
+    return DEFAULT_NOTIFICATION_PREFERENCES;
+  }
+}
+function saveStoredPreferences(prefs) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  } catch (e) {
+    console.warn("Failed to save notification preferences to localStorage:", e);
+  }
+}
+function getNotificationPermissionStatus() {
+  if (typeof window === "undefined" || !("Notification" in window)) {
+    return "unsupported";
+  }
+  return Notification.permission;
+}
+async function requestDeviceNotificationPermission() {
+  if (typeof window === "undefined" || !("Notification" in window)) {
+    return "unsupported";
+  }
+  try {
+    const permission = await Notification.requestPermission();
+    return permission;
+  } catch (err) {
+    console.warn("Notification permission request error:", err);
+    return "denied";
+  }
+}
+function playNotificationChime() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const now2 = ctx.currentTime;
+    const playTone = (freq, start, duration, gainVal) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(1e-3, start);
+      gain.gain.exponentialRampToValueAtTime(gainVal, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(1e-4, start + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + duration);
+    };
+    playTone(587.33, now2, 0.25, 0.12);
+    playTone(880, now2 + 0.12, 0.35, 0.16);
+    setTimeout(() => {
+      ctx.close().catch(() => {
+      });
+    }, 600);
+  } catch {
+  }
+}
+function sendDeviceNotification(title, options) {
+  const prefs = options.userPrefs || getStoredPreferences();
+  if (!prefs.enabled) return false;
+  if (!prefs[options.category]) return false;
+  if (options.playSound !== false) {
+    playNotificationChime();
+  }
+  if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+    try {
+      const n = new Notification(title, {
+        body: options.body,
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        tag: options.tag || options.category
+      });
+      n.onclick = () => {
+        window.focus();
+        if (options.url) {
+          window.location.hash = options.url;
+        }
+        n.close();
+      };
+      return true;
+    } catch (e) {
+      console.warn("System Notification dispatch failed:", e);
+      return false;
+    }
+  }
+  return false;
+}
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -35255,41 +35366,41 @@ const createLucideIcon = (iconName, iconNode) => {
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const __iconNode$Z = [
+const __iconNode$10 = [
   ["rect", { width: "20", height: "5", x: "2", y: "3", rx: "1", key: "1wp1u1" }],
   ["path", { d: "M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8", key: "1s80jp" }],
   ["path", { d: "M10 12h4", key: "a56b0p" }]
 ];
-const Archive = createLucideIcon("archive", __iconNode$Z);
+const Archive = createLucideIcon("archive", __iconNode$10);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const __iconNode$Y = [
+const __iconNode$$ = [
   ["path", { d: "M5 12h14", key: "1ays0h" }],
   ["path", { d: "m12 5 7 7-7 7", key: "xquz4c" }]
 ];
-const ArrowRight = createLucideIcon("arrow-right", __iconNode$Y);
+const ArrowRight = createLucideIcon("arrow-right", __iconNode$$);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const __iconNode$X = [
+const __iconNode$_ = [
   ["circle", { cx: "12", cy: "12", r: "4", key: "4exip2" }],
   ["path", { d: "M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8", key: "7n84p3" }]
 ];
-const AtSign = createLucideIcon("at-sign", __iconNode$X);
+const AtSign = createLucideIcon("at-sign", __iconNode$_);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const __iconNode$W = [
+const __iconNode$Z = [
   [
     "path",
     {
@@ -35299,7 +35410,62 @@ const __iconNode$W = [
   ],
   ["circle", { cx: "12", cy: "8", r: "6", key: "1vp47v" }]
 ];
-const Award = createLucideIcon("award", __iconNode$W);
+const Award = createLucideIcon("award", __iconNode$Z);
+/**
+ * @license lucide-react v0.546.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+const __iconNode$Y = [
+  ["path", { d: "M10.268 21a2 2 0 0 0 3.464 0", key: "vwvbt9" }],
+  [
+    "path",
+    {
+      d: "M17 17H4a1 1 0 0 1-.74-1.673C4.59 13.956 6 12.499 6 8a6 6 0 0 1 .258-1.742",
+      key: "178tsu"
+    }
+  ],
+  ["path", { d: "m2 2 20 20", key: "1ooewy" }],
+  ["path", { d: "M8.668 3.01A6 6 0 0 1 18 8c0 2.687.77 4.653 1.707 6.05", key: "1hqiys" }]
+];
+const BellOff = createLucideIcon("bell-off", __iconNode$Y);
+/**
+ * @license lucide-react v0.546.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+const __iconNode$X = [
+  ["path", { d: "M10.268 21a2 2 0 0 0 3.464 0", key: "vwvbt9" }],
+  ["path", { d: "M22 8c0-2.3-.8-4.3-2-6", key: "5bb3ad" }],
+  [
+    "path",
+    {
+      d: "M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326",
+      key: "11g9vi"
+    }
+  ],
+  ["path", { d: "M4 2C2.8 3.7 2 5.7 2 8", key: "tap9e0" }]
+];
+const BellRing = createLucideIcon("bell-ring", __iconNode$X);
+/**
+ * @license lucide-react v0.546.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+const __iconNode$W = [
+  ["path", { d: "M10.268 21a2 2 0 0 0 3.464 0", key: "vwvbt9" }],
+  [
+    "path",
+    {
+      d: "M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326",
+      key: "11g9vi"
+    }
+  ]
+];
+const Bell = createLucideIcon("bell", __iconNode$W);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -35767,12 +35933,15 @@ const MessageSquare = createLucideIcon("message-square", __iconNode$m);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$l = [
-  ["path", { d: "m14 10 7-7", key: "oa77jy" }],
-  ["path", { d: "M20 10h-6V4", key: "mjg0md" }],
-  ["path", { d: "m3 21 7-7", key: "tjx5ai" }],
-  ["path", { d: "M4 14h6v6", key: "rmj7iw" }]
+  [
+    "path",
+    {
+      d: "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z",
+      key: "1a8usu"
+    }
+  ]
 ];
-const Minimize2 = createLucideIcon("minimize-2", __iconNode$l);
+const Pen = createLucideIcon("pen", __iconNode$l);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -35786,9 +35955,10 @@ const __iconNode$k = [
       d: "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z",
       key: "1a8usu"
     }
-  ]
+  ],
+  ["path", { d: "m15 5 4 4", key: "1mk7zo" }]
 ];
-const Pen = createLucideIcon("pen", __iconNode$k);
+const Pencil = createLucideIcon("pencil", __iconNode$k);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -35796,16 +35966,10 @@ const Pen = createLucideIcon("pen", __iconNode$k);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$j = [
-  [
-    "path",
-    {
-      d: "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z",
-      key: "1a8usu"
-    }
-  ],
-  ["path", { d: "m15 5 4 4", key: "1mk7zo" }]
+  ["path", { d: "M5 12h14", key: "1ays0h" }],
+  ["path", { d: "M12 5v14", key: "s699le" }]
 ];
-const Pencil = createLucideIcon("pencil", __iconNode$j);
+const Plus = createLucideIcon("plus", __iconNode$j);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -35813,10 +35977,10 @@ const Pencil = createLucideIcon("pencil", __iconNode$j);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$i = [
-  ["path", { d: "M5 12h14", key: "1ays0h" }],
-  ["path", { d: "M12 5v14", key: "s699le" }]
+  ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", key: "1357e3" }],
+  ["path", { d: "M3 3v5h5", key: "1xhq8a" }]
 ];
-const Plus = createLucideIcon("plus", __iconNode$i);
+const RotateCcw = createLucideIcon("rotate-ccw", __iconNode$i);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -35824,17 +35988,6 @@ const Plus = createLucideIcon("plus", __iconNode$i);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$h = [
-  ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", key: "1357e3" }],
-  ["path", { d: "M3 3v5h5", key: "1xhq8a" }]
-];
-const RotateCcw = createLucideIcon("rotate-ccw", __iconNode$h);
-/**
- * @license lucide-react v0.546.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */
-const __iconNode$g = [
   [
     "path",
     {
@@ -35845,7 +35998,18 @@ const __iconNode$g = [
   ["path", { d: "M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7", key: "1ydtos" }],
   ["path", { d: "M7 3v4a1 1 0 0 0 1 1h7", key: "t51u73" }]
 ];
-const Save = createLucideIcon("save", __iconNode$g);
+const Save = createLucideIcon("save", __iconNode$h);
+/**
+ * @license lucide-react v0.546.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+const __iconNode$g = [
+  ["path", { d: "m21 21-4.34-4.34", key: "14j7rj" }],
+  ["circle", { cx: "11", cy: "11", r: "8", key: "4ej97u" }]
+];
+const Search = createLucideIcon("search", __iconNode$g);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -35853,17 +36017,6 @@ const Save = createLucideIcon("save", __iconNode$g);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$f = [
-  ["path", { d: "m21 21-4.34-4.34", key: "14j7rj" }],
-  ["circle", { cx: "11", cy: "11", r: "8", key: "4ej97u" }]
-];
-const Search = createLucideIcon("search", __iconNode$f);
-/**
- * @license lucide-react v0.546.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */
-const __iconNode$e = [
   [
     "path",
     {
@@ -35873,7 +36026,21 @@ const __iconNode$e = [
   ],
   ["path", { d: "m21.854 2.147-10.94 10.939", key: "12cjpa" }]
 ];
-const Send = createLucideIcon("send", __iconNode$e);
+const Send = createLucideIcon("send", __iconNode$f);
+/**
+ * @license lucide-react v0.546.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+const __iconNode$e = [
+  ["circle", { cx: "18", cy: "5", r: "3", key: "gq8acd" }],
+  ["circle", { cx: "6", cy: "12", r: "3", key: "w7nqdw" }],
+  ["circle", { cx: "18", cy: "19", r: "3", key: "1xt0gg" }],
+  ["line", { x1: "8.59", x2: "15.42", y1: "13.51", y2: "17.49", key: "47mynk" }],
+  ["line", { x1: "15.41", x2: "8.59", y1: "6.51", y2: "10.49", key: "1n3mei" }]
+];
+const Share2 = createLucideIcon("share-2", __iconNode$e);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -35881,13 +36048,16 @@ const Send = createLucideIcon("send", __iconNode$e);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$d = [
-  ["circle", { cx: "18", cy: "5", r: "3", key: "gq8acd" }],
-  ["circle", { cx: "6", cy: "12", r: "3", key: "w7nqdw" }],
-  ["circle", { cx: "18", cy: "19", r: "3", key: "1xt0gg" }],
-  ["line", { x1: "8.59", x2: "15.42", y1: "13.51", y2: "17.49", key: "47mynk" }],
-  ["line", { x1: "15.41", x2: "8.59", y1: "6.51", y2: "10.49", key: "1n3mei" }]
+  [
+    "path",
+    {
+      d: "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z",
+      key: "oel41y"
+    }
+  ],
+  ["path", { d: "m9 12 2 2 4-4", key: "dzmm74" }]
 ];
-const Share2 = createLucideIcon("share-2", __iconNode$d);
+const ShieldCheck = createLucideIcon("shield-check", __iconNode$d);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -35901,10 +36071,9 @@ const __iconNode$c = [
       d: "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z",
       key: "oel41y"
     }
-  ],
-  ["path", { d: "m9 12 2 2 4-4", key: "dzmm74" }]
+  ]
 ];
-const ShieldCheck = createLucideIcon("shield-check", __iconNode$c);
+const Shield = createLucideIcon("shield", __iconNode$c);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -35912,15 +36081,10 @@ const ShieldCheck = createLucideIcon("shield-check", __iconNode$c);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$b = [
-  [
-    "path",
-    {
-      d: "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z",
-      key: "oel41y"
-    }
-  ]
+  ["rect", { width: "14", height: "20", x: "5", y: "2", rx: "2", ry: "2", key: "1yt0o3" }],
+  ["path", { d: "M12 18h.01", key: "mhygvu" }]
 ];
-const Shield = createLucideIcon("shield", __iconNode$b);
+const Smartphone = createLucideIcon("smartphone", __iconNode$b);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -35928,17 +36092,6 @@ const Shield = createLucideIcon("shield", __iconNode$b);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$a = [
-  ["rect", { width: "14", height: "20", x: "5", y: "2", rx: "2", ry: "2", key: "1yt0o3" }],
-  ["path", { d: "M12 18h.01", key: "mhygvu" }]
-];
-const Smartphone = createLucideIcon("smartphone", __iconNode$a);
-/**
- * @license lucide-react v0.546.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */
-const __iconNode$9 = [
   [
     "path",
     {
@@ -35950,7 +36103,18 @@ const __iconNode$9 = [
   ["path", { d: "M22 4h-4", key: "gwowj6" }],
   ["circle", { cx: "4", cy: "20", r: "2", key: "6kqj1y" }]
 ];
-const Sparkles = createLucideIcon("sparkles", __iconNode$9);
+const Sparkles = createLucideIcon("sparkles", __iconNode$a);
+/**
+ * @license lucide-react v0.546.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+const __iconNode$9 = [
+  ["path", { d: "M12 19h8", key: "baeox8" }],
+  ["path", { d: "m4 17 6-6-6-6", key: "1yngyt" }]
+];
+const Terminal = createLucideIcon("terminal", __iconNode$9);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -35958,17 +36122,6 @@ const Sparkles = createLucideIcon("sparkles", __iconNode$9);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$8 = [
-  ["path", { d: "M12 19h8", key: "baeox8" }],
-  ["path", { d: "m4 17 6-6-6-6", key: "1yngyt" }]
-];
-const Terminal = createLucideIcon("terminal", __iconNode$8);
-/**
- * @license lucide-react v0.546.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */
-const __iconNode$7 = [
   ["path", { d: "M7 10v12", key: "1qc93n" }],
   [
     "path",
@@ -35978,7 +36131,21 @@ const __iconNode$7 = [
     }
   ]
 ];
-const ThumbsUp = createLucideIcon("thumbs-up", __iconNode$7);
+const ThumbsUp = createLucideIcon("thumbs-up", __iconNode$8);
+/**
+ * @license lucide-react v0.546.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+const __iconNode$7 = [
+  ["path", { d: "M10 11v6", key: "nco0om" }],
+  ["path", { d: "M14 11v6", key: "outv1u" }],
+  ["path", { d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6", key: "miytrc" }],
+  ["path", { d: "M3 6h18", key: "d0wm0j" }],
+  ["path", { d: "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2", key: "e791ji" }]
+];
+const Trash2 = createLucideIcon("trash-2", __iconNode$7);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -35986,20 +36153,6 @@ const ThumbsUp = createLucideIcon("thumbs-up", __iconNode$7);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$6 = [
-  ["path", { d: "M10 11v6", key: "nco0om" }],
-  ["path", { d: "M14 11v6", key: "outv1u" }],
-  ["path", { d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6", key: "miytrc" }],
-  ["path", { d: "M3 6h18", key: "d0wm0j" }],
-  ["path", { d: "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2", key: "e791ji" }]
-];
-const Trash2 = createLucideIcon("trash-2", __iconNode$6);
-/**
- * @license lucide-react v0.546.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */
-const __iconNode$5 = [
   [
     "path",
     {
@@ -36010,14 +36163,14 @@ const __iconNode$5 = [
   ["path", { d: "M12 9v4", key: "juzpu7" }],
   ["path", { d: "M12 17h.01", key: "p32p05" }]
 ];
-const TriangleAlert = createLucideIcon("triangle-alert", __iconNode$5);
+const TriangleAlert = createLucideIcon("triangle-alert", __iconNode$6);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const __iconNode$4 = [
+const __iconNode$5 = [
   ["path", { d: "M10 14.66v1.626a2 2 0 0 1-.976 1.696A5 5 0 0 0 7 21.978", key: "1n3hpd" }],
   ["path", { d: "M14 14.66v1.626a2 2 0 0 0 .976 1.696A5 5 0 0 1 17 21.978", key: "rfe1zi" }],
   ["path", { d: "M18 9h1.5a1 1 0 0 0 0-5H18", key: "7xy6bh" }],
@@ -36025,7 +36178,18 @@ const __iconNode$4 = [
   ["path", { d: "M6 9a6 6 0 0 0 12 0V3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1z", key: "1mhfuq" }],
   ["path", { d: "M6 9H4.5a1 1 0 0 1 0-5H6", key: "tex48p" }]
 ];
-const Trophy = createLucideIcon("trophy", __iconNode$4);
+const Trophy = createLucideIcon("trophy", __iconNode$5);
+/**
+ * @license lucide-react v0.546.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+const __iconNode$4 = [
+  ["path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2", key: "975kel" }],
+  ["circle", { cx: "12", cy: "7", r: "4", key: "17ys0d" }]
+];
+const User2 = createLucideIcon("user", __iconNode$4);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -36033,10 +36197,12 @@ const Trophy = createLucideIcon("trophy", __iconNode$4);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$3 = [
-  ["path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2", key: "975kel" }],
-  ["circle", { cx: "12", cy: "7", r: "4", key: "17ys0d" }]
+  ["path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", key: "1yyitq" }],
+  ["path", { d: "M16 3.128a4 4 0 0 1 0 7.744", key: "16gr8j" }],
+  ["path", { d: "M22 21v-2a4 4 0 0 0-3-3.87", key: "kshegd" }],
+  ["circle", { cx: "9", cy: "7", r: "4", key: "nufk8" }]
 ];
-const User2 = createLucideIcon("user", __iconNode$3);
+const Users = createLucideIcon("users", __iconNode$3);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -36044,12 +36210,17 @@ const User2 = createLucideIcon("user", __iconNode$3);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$2 = [
-  ["path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", key: "1yyitq" }],
-  ["path", { d: "M16 3.128a4 4 0 0 1 0 7.744", key: "16gr8j" }],
-  ["path", { d: "M22 21v-2a4 4 0 0 0-3-3.87", key: "kshegd" }],
-  ["circle", { cx: "9", cy: "7", r: "4", key: "nufk8" }]
+  [
+    "path",
+    {
+      d: "M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z",
+      key: "uqj9uw"
+    }
+  ],
+  ["path", { d: "M16 9a5 5 0 0 1 0 6", key: "1q6k2b" }],
+  ["path", { d: "M19.364 18.364a9 9 0 0 0 0-12.728", key: "ijwkga" }]
 ];
-const Users = createLucideIcon("users", __iconNode$2);
+const Volume2 = createLucideIcon("volume-2", __iconNode$2);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -50432,6 +50603,14 @@ function Profile({
   const [legalModalTab, setLegalModalTab] = reactExports.useState(null);
   const [showExportGuide, setShowExportGuide] = reactExports.useState(false);
   const [copiedCmd, setCopiedCmd] = reactExports.useState(null);
+  const [notificationPrefs, setNotificationPrefs] = reactExports.useState(() => {
+    return (member == null ? void 0 : member.notificationPreferences) || getStoredPreferences();
+  });
+  const [permissionStatus, setPermissionStatus] = reactExports.useState(() => {
+    return getNotificationPermissionStatus();
+  });
+  const [isSavingPrefs, setIsSavingPrefs] = reactExports.useState(false);
+  const [prefsStatusMessage, setPrefsStatusMessage] = reactExports.useState(null);
   const copyToClipboard = (text, id2) => {
     navigator.clipboard.writeText(text);
     setCopiedCmd(id2);
@@ -50458,14 +50637,66 @@ function Profile({
       unsubscribeActivities();
     };
   }, [user]);
+  reactExports.useEffect(() => {
+    if (member == null ? void 0 : member.notificationPreferences) {
+      setNotificationPrefs(member.notificationPreferences);
+      saveStoredPreferences(member.notificationPreferences);
+    }
+  }, [member]);
+  const handleToggleNotification = (key) => {
+    const updated = {
+      ...notificationPrefs,
+      [key]: !notificationPrefs[key]
+    };
+    setNotificationPrefs(updated);
+    saveStoredPreferences(updated);
+  };
+  const handleToggleAll = () => {
+    const nextEnabled = !notificationPrefs.enabled;
+    const updated = {
+      ...notificationPrefs,
+      enabled: nextEnabled
+    };
+    setNotificationPrefs(updated);
+    saveStoredPreferences(updated);
+  };
+  const handleRequestPermission = async () => {
+    const res = await requestDeviceNotificationPermission();
+    setPermissionStatus(res);
+    if (res === "granted") {
+      playNotificationChime();
+      setPrefsStatusMessage("Device notifications enabled!");
+      setTimeout(() => setPrefsStatusMessage(null), 3500);
+    }
+  };
+  const handleSaveNotificationPreferences = async () => {
+    setIsSavingPrefs(true);
+    setPrefsStatusMessage(null);
+    try {
+      saveStoredPreferences(notificationPrefs);
+      const memberRef = doc(db, "members", user.uid);
+      await updateDoc(memberRef, {
+        notificationPreferences: notificationPrefs
+      });
+      setPrefsStatusMessage("Notification settings saved!");
+    } catch (err) {
+      console.warn("Error saving notification preferences:", err);
+      setPrefsStatusMessage("Settings saved locally.");
+    } finally {
+      setIsSavingPrefs(false);
+      setTimeout(() => setPrefsStatusMessage(null), 3500);
+    }
+  };
   const handleUpdate = async () => {
     setSaving(true);
     const memberRef = doc(db, "members", user.uid);
     try {
+      saveStoredPreferences(notificationPrefs);
       await updateDoc(memberRef, {
         location: location2,
         availability,
-        interests
+        interests,
+        notificationPreferences: notificationPrefs
       });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `members/${user.uid}`);
@@ -50601,6 +50832,162 @@ function Profile({
               /* @__PURE__ */ jsxRuntimeExports.jsx(Save, { size: 18 }),
               " Update Settings"
             ] })
+          }
+        )
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-sm space-y-6", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0", children: /* @__PURE__ */ jsxRuntimeExports.jsx(BellRing, { size: 20 }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-lg font-black uppercase tracking-tight text-slate-900", children: "Notification Preferences" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-500", children: "Choose which alerts trigger device notifications & sounds" })
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "button",
+            {
+              type: "button",
+              onClick: playNotificationChime,
+              className: "flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer",
+              title: "Test the chime sound",
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(Volume2, { size: 13, className: "text-indigo-600" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Test Sound" })
+              ]
+            }
+          ),
+          permissionStatus === "granted" ? /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-black uppercase tracking-wider", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "w-2 h-2 rounded-full bg-emerald-500" }),
+            "Active"
+          ] }) : permissionStatus === "denied" ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold", children: "Blocked in Browser" }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "button",
+            {
+              type: "button",
+              onClick: handleRequestPermission,
+              className: "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs",
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(Bell, { size: 12 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Enable Device Alerts" })
+              ]
+            }
+          )
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between p-4 bg-indigo-50/60 rounded-2xl border border-indigo-100/80", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0", children: notificationPrefs.enabled ? /* @__PURE__ */ jsxRuntimeExports.jsx(Bell, { size: 16 }) : /* @__PURE__ */ jsxRuntimeExports.jsx(BellOff, { size: 16 }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm font-black text-indigo-950", children: notificationPrefs.enabled ? "All Notifications Enabled" : "Notifications Paused" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-xs text-indigo-700", children: notificationPrefs.enabled ? "You will receive alerts according to the categories selected below" : "All device and in-app sound notifications are muted" })
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            type: "button",
+            onClick: handleToggleAll,
+            className: `w-12 h-7 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 ${notificationPrefs.enabled ? "bg-indigo-600" : "bg-slate-300"}`,
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: `bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${notificationPrefs.enabled ? "translate-x-5" : "translate-x-0"}`
+              }
+            )
+          }
+        )
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `space-y-3 transition-opacity ${notificationPrefs.enabled ? "opacity-100" : "opacity-40 pointer-events-none"}`, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[10px] font-black uppercase tracking-widest text-slate-400", children: "Alert Categories" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-3", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "div",
+            {
+              onClick: () => handleToggleNotification("messages"),
+              className: `p-4 rounded-2xl border transition-all cursor-pointer flex items-start justify-between gap-3 ${notificationPrefs.messages ? "bg-white border-indigo-200 shadow-xs ring-1 ring-indigo-500/10" : "bg-slate-50 border-slate-200 opacity-60"}`,
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start gap-3", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5", children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCircle, { size: 16 }) }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-xs font-black text-slate-900 uppercase tracking-tight", children: "Chat Messages" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[11px] text-slate-500 mt-0.5 leading-snug", children: "New messages in chat channels, event threads, and @ mentions" })
+                  ] })
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `w-9 h-5 flex items-center rounded-full p-0.5 transition-colors duration-200 shrink-0 ${notificationPrefs.messages ? "bg-indigo-600" : "bg-slate-300"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform duration-200 ${notificationPrefs.messages ? "translate-x-4" : "translate-x-0"}` }) })
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "div",
+            {
+              onClick: () => handleToggleNotification("boardPosts"),
+              className: `p-4 rounded-2xl border transition-all cursor-pointer flex items-start justify-between gap-3 ${notificationPrefs.boardPosts ? "bg-white border-indigo-200 shadow-xs ring-1 ring-indigo-500/10" : "bg-slate-50 border-slate-200 opacity-60"}`,
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start gap-3", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 mt-0.5", children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageSquare, { size: 16 }) }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-xs font-black text-slate-900 uppercase tracking-tight", children: "Board Posts" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[11px] text-slate-500 mt-0.5 leading-snug", children: "New topics, announcements, and articles on the community board" })
+                  ] })
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `w-9 h-5 flex items-center rounded-full p-0.5 transition-colors duration-200 shrink-0 ${notificationPrefs.boardPosts ? "bg-indigo-600" : "bg-slate-300"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform duration-200 ${notificationPrefs.boardPosts ? "translate-x-4" : "translate-x-0"}` }) })
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "div",
+            {
+              onClick: () => handleToggleNotification("ideas"),
+              className: `p-4 rounded-2xl border transition-all cursor-pointer flex items-start justify-between gap-3 ${notificationPrefs.ideas ? "bg-white border-indigo-200 shadow-xs ring-1 ring-indigo-500/10" : "bg-slate-50 border-slate-200 opacity-60"}`,
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start gap-3", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 mt-0.5", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Lightbulb, { size: 16 }) }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-xs font-black text-slate-900 uppercase tracking-tight", children: "New Ideas" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[11px] text-slate-500 mt-0.5 leading-snug", children: "When a member adds a new activity prompt to the backlog" })
+                  ] })
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `w-9 h-5 flex items-center rounded-full p-0.5 transition-colors duration-200 shrink-0 ${notificationPrefs.ideas ? "bg-indigo-600" : "bg-slate-300"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform duration-200 ${notificationPrefs.ideas ? "translate-x-4" : "translate-x-0"}` }) })
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "div",
+            {
+              onClick: () => handleToggleNotification("events"),
+              className: `p-4 rounded-2xl border transition-all cursor-pointer flex items-start justify-between gap-3 ${notificationPrefs.events ? "bg-white border-indigo-200 shadow-xs ring-1 ring-indigo-500/10" : "bg-slate-50 border-slate-200 opacity-60"}`,
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start gap-3", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Calendar, { size: 16 }) }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-xs font-black text-slate-900 uppercase tracking-tight", children: "Scheduled Events" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[11px] text-slate-500 mt-0.5 leading-snug", children: "When meetups are scheduled or updated on the calendar" })
+                  ] })
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `w-9 h-5 flex items-center rounded-full p-0.5 transition-colors duration-200 shrink-0 ${notificationPrefs.events ? "bg-indigo-600" : "bg-slate-300"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform duration-200 ${notificationPrefs.events ? "translate-x-4" : "translate-x-0"}` }) })
+              ]
+            }
+          )
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "pt-2 flex flex-col sm:flex-row items-center justify-between gap-3", children: [
+        prefsStatusMessage ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(CircleCheck, { size: 14 }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: prefsStatusMessage })
+        ] }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[11px] text-slate-400", children: "Preferences are saved to your account and synced across your devices." }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "button",
+          {
+            type: "button",
+            onClick: handleSaveNotificationPreferences,
+            disabled: isSavingPrefs,
+            className: "w-full sm:w-auto px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black uppercase tracking-wider text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs disabled:opacity-50",
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(Save, { size: 14 }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: isSavingPrefs ? "Saving..." : "Save Preferences" })
+            ]
           }
         )
       ] })
@@ -53190,7 +53577,7 @@ registerPlugin("SystemBars", {
   web: () => new SystemBarsPluginWeb()
 });
 const App$1 = registerPlugin("App", {
-  web: () => __vitePreload(() => import("./web-DZpRh6PJ.js"), true ? [] : void 0).then((m) => new m.AppWeb())
+  web: () => __vitePreload(() => import("./web-BLg3K5ql.js"), true ? [] : void 0).then((m) => new m.AppWeb())
 });
 function safeGetStorage(key) {
   try {
@@ -53231,9 +53618,6 @@ function App() {
   const [legalModalTab, setLegalModalTab] = reactExports.useState(null);
   const [activeInviteCode, setActiveInviteCode] = reactExports.useState(() => getInviteCodeFromUrl() || getStoredInviteCode());
   const [showInviteModal, setShowInviteModal] = reactExports.useState(() => Boolean(getInviteCodeFromUrl()));
-  const [densityMode, setDensityMode] = reactExports.useState(() => {
-    return safeGetStorage("dadleague_density") || "compact";
-  });
   reactExports.useEffect(() => {
     const urlCode = getInviteCodeFromUrl();
     if (urlCode) {
@@ -53434,32 +53818,146 @@ function App() {
     const qNewSessions = query(
       collection(db, "sessions"),
       where("leagueId", "==", selectedLeagueId),
-      limit(5)
+      limit(10)
     );
-    let initialLoad = true;
+    let initialSessionsLoad = true;
     const unsubscribeSessions = onSnapshot(qNewSessions, (snap) => {
-      if (initialLoad) {
-        initialLoad = false;
+      if (initialSessionsLoad) {
+        initialSessionsLoad = false;
         return;
       }
       snap.docChanges().forEach((change) => {
         if (change.type === "added") {
           const data = change.doc.data();
-          const title = `New Event: ${data.activityName}`;
-          const message2 = `Hosted by ${data.hostName} on ${new Date(data.date).toLocaleDateString()}. RSVP now!`;
-          setNotification({ title, message: message2 });
-          if ("Notification" in window && Notification.permission === "granted") {
-            new Notification(title, { body: message2, icon: "/favicon.ico" });
-          }
+          if (data.hostId && data.hostId === user.uid) return;
+          const title = `📅 New Event: ${data.activityName}`;
+          const message2 = `Hosted by ${data.hostName || "a dad"} on ${data.date ? new Date(data.date).toLocaleDateString() : "an upcoming date"}. RSVP now!`;
+          sendDeviceNotification(title, {
+            body: message2,
+            category: "events",
+            userPrefs: member == null ? void 0 : member.notificationPreferences,
+            playSound: true
+          });
+          setNotification({
+            title,
+            message: message2,
+            targetTab: "calendar",
+            actionLabel: "View & RSVP"
+          });
           setTimeout(() => setNotification(null), 8e3);
         }
       });
     }, (err) => console.warn("New events listener warning:", err));
+    const qNewMessages = query(
+      collection(db, "messages"),
+      where("leagueId", "==", selectedLeagueId),
+      limit(10)
+    );
+    let initialMessagesLoad = true;
+    const unsubscribeMessages = onSnapshot(qNewMessages, (snap) => {
+      if (initialMessagesLoad) {
+        initialMessagesLoad = false;
+        return;
+      }
+      snap.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const data = change.doc.data();
+          if (data.senderId === user.uid) return;
+          const sender = data.senderName || "A Dad";
+          const title = `💬 ${sender} in Chat`;
+          const rawText = data.text || "";
+          const message2 = rawText.length > 80 ? rawText.slice(0, 80) + "..." : rawText;
+          sendDeviceNotification(title, {
+            body: message2,
+            category: "messages",
+            userPrefs: member == null ? void 0 : member.notificationPreferences,
+            playSound: true
+          });
+          setNotification({
+            title,
+            message: message2,
+            targetTab: "chat",
+            actionLabel: "Open Chat"
+          });
+          setTimeout(() => setNotification(null), 7e3);
+        }
+      });
+    }, (err) => console.warn("New messages listener warning:", err));
+    const qNewPosts = query(
+      collection(db, "posts"),
+      where("leagueId", "==", selectedLeagueId),
+      limit(10)
+    );
+    let initialPostsLoad = true;
+    const unsubscribePosts = onSnapshot(qNewPosts, (snap) => {
+      if (initialPostsLoad) {
+        initialPostsLoad = false;
+        return;
+      }
+      snap.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const data = change.doc.data();
+          if (data.authorId === user.uid) return;
+          const title = `📋 New Board Post: ${data.title || "Discussion"}`;
+          const rawContent = data.content || "";
+          const message2 = `Posted by ${data.authorName || "a member"}: ${rawContent.slice(0, 80)}...`;
+          sendDeviceNotification(title, {
+            body: message2,
+            category: "boardPosts",
+            userPrefs: member == null ? void 0 : member.notificationPreferences,
+            playSound: true
+          });
+          setNotification({
+            title,
+            message: message2,
+            targetTab: "board",
+            actionLabel: "Read Post"
+          });
+          setTimeout(() => setNotification(null), 8e3);
+        }
+      });
+    }, (err) => console.warn("New posts listener warning:", err));
+    const qNewIdeas = query(
+      collection(db, "activities"),
+      where("leagueId", "==", selectedLeagueId),
+      limit(10)
+    );
+    let initialIdeasLoad = true;
+    const unsubscribeIdeas = onSnapshot(qNewIdeas, (snap) => {
+      if (initialIdeasLoad) {
+        initialIdeasLoad = false;
+        return;
+      }
+      snap.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const data = change.doc.data();
+          if (data.suggestedBy === user.uid) return;
+          const title = `💡 New Idea: ${data.title}`;
+          const message2 = `Suggested by ${data.suggestedByName || "a dad"}. Upvote it in the backlog!`;
+          sendDeviceNotification(title, {
+            body: message2,
+            category: "ideas",
+            userPrefs: member == null ? void 0 : member.notificationPreferences,
+            playSound: true
+          });
+          setNotification({
+            title,
+            message: message2,
+            targetTab: "backlog",
+            actionLabel: "View Idea"
+          });
+          setTimeout(() => setNotification(null), 8e3);
+        }
+      });
+    }, (err) => console.warn("New ideas listener warning:", err));
     return () => {
       unsubscribeS();
       unsubscribeSessions();
+      unsubscribeMessages();
+      unsubscribePosts();
+      unsubscribeIdeas();
     };
-  }, [user, selectedLeagueId]);
+  }, [user, selectedLeagueId, member == null ? void 0 : member.notificationPreferences]);
   const activeLeague = leagues.find((l) => l.id === selectedLeagueId);
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
@@ -53585,37 +54083,48 @@ function App() {
     { id: "chat", label: "Chat", icon: Send },
     { id: "members", label: "League", icon: Users }
   ];
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `min-h-screen bg-slate-100 text-slate-900 font-sans ${activeTab === "chat" ? "h-screen flex flex-col overflow-hidden" : "pb-24"}`, children: [
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `min-h-screen bg-slate-100 text-slate-900 font-sans w-full max-w-full overflow-x-hidden ${activeTab === "chat" ? "h-screen flex flex-col overflow-hidden" : "pb-24"}`, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx(AnimatePresence, { children: notification && /* @__PURE__ */ jsxRuntimeExports.jsx(
       motion.div,
       {
         initial: { opacity: 0, y: -100, x: "-50%" },
-        animate: { opacity: 1, y: 20, x: "-50%" },
+        animate: { opacity: 1, y: 16, x: "-50%" },
         exit: { opacity: 0, y: -100, x: "-50%" },
         className: "fixed top-0 left-1/2 z-[100] w-full max-w-sm px-4",
-        children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-slate-900 text-white p-4 rounded-3xl shadow-2xl border border-slate-700 flex flex-col gap-1 items-center text-center", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center mb-1 text-slate-600", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Calendar, { size: 20 }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("h4", { className: "font-black uppercase tracking-tight text-lg", children: notification.title }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-slate-400 text-xs font-bold leading-relaxed", children: notification.message }),
+        children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-slate-900/95 backdrop-blur-md text-white p-4 rounded-3xl shadow-2xl border border-slate-700/80 flex flex-col gap-1 items-center text-center relative", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              onClick: () => setNotification(null),
+              className: "absolute top-3 right-3 text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-800 transition-colors cursor-pointer",
+              title: "Dismiss",
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(X, { size: 14 })
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-9 h-9 bg-indigo-500/20 text-indigo-400 rounded-xl flex items-center justify-center mb-1 border border-indigo-500/30", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Bell, { size: 18 }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("h4", { className: "font-black uppercase tracking-tight text-sm text-white", children: notification.title }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-slate-300 text-xs font-medium leading-relaxed max-w-xs", children: notification.message }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "button",
             {
               onClick: () => {
-                setActiveTab("calendar");
+                if (notification.targetTab) {
+                  setActiveTab(notification.targetTab);
+                }
                 setNotification(null);
               },
-              className: "mt-2 text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300",
-              children: "View & RSVP"
+              className: "mt-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-xs active:scale-95",
+              children: notification.actionLabel || "View Now"
             }
           )
         ] })
       }
     ) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("header", { className: `sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 transition-all duration-300 ${isScrolled ? "py-2 px-4 shadow-md" : "py-4 px-6 shadow-sm"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "max-w-4xl mx-auto flex items-center justify-between gap-4", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-center gap-3 shrink-0", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3 group px-1", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200 shadow-lg -rotate-3 transition-transform group-hover:rotate-0 duration-300", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Trophy, { size: 20, className: "text-white rotate-3 group-hover:rotate-0 transition-transform" }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("header", { className: `sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 transition-all duration-300 ${isScrolled ? "py-2 px-3 sm:px-4 shadow-md" : "py-3 sm:py-4 px-3 sm:px-6 shadow-sm"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "max-w-4xl mx-auto flex items-center justify-between gap-2 sm:gap-4", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-center gap-2 sm:gap-3 shrink-0", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 sm:gap-3 group px-1", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-9 h-9 sm:w-10 sm:h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200 shadow-lg -rotate-3 transition-transform group-hover:rotate-0 duration-300", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Trophy, { size: 18, className: "text-white rotate-3 group-hover:rotate-0 transition-transform sm:w-5 sm:h-5" }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-xl font-black uppercase tracking-tighter leading-none", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-lg sm:text-xl font-black uppercase tracking-tighter leading-none", children: [
             "Dad",
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-indigo-600", children: "League" })
           ] }),
@@ -53626,23 +54135,6 @@ function App() {
         ] })
       ] }) }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 sm:gap-3 shrink-0 relative", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "button",
-          {
-            onClick: () => {
-              const next = densityMode === "compact" ? "comfortable" : "compact";
-              setDensityMode(next);
-              safeSetStorage("dadleague_density", next);
-            },
-            className: `flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-xs ${densityMode === "compact" ? "bg-indigo-600 text-white border-indigo-700 shadow-indigo-100" : "bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100"}`,
-            title: densityMode === "compact" ? "Zoomed Out (Compact View)" : "Switch to Compact View (less scrolling)",
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(Minimize2, { size: 13, className: densityMode === "compact" ? "rotate-45" : "" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "hidden sm:inline", children: densityMode === "compact" ? "Zoomed Out" : "Comfortable" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "sm:hidden", children: densityMode === "compact" ? "Zoom Out" : "100%" })
-            ]
-          }
-        ),
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "button",
           {
@@ -53678,7 +54170,7 @@ function App() {
                 "img",
                 {
                   src: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
-                  className: `${isScrolled ? "w-8 h-8" : "w-10 h-10"} rounded-full shadow-md object-cover`,
+                  className: `${isScrolled ? "w-8 h-8" : "w-9 h-9 sm:w-10 sm:h-10"} rounded-full shadow-md object-cover`,
                   alt: "Profile",
                   referrerPolicy: "no-referrer"
                 }
@@ -53896,7 +54388,7 @@ function App() {
         }
       )
     ] }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("main", { className: `max-w-4xl mx-auto px-2 sm:px-4 lg:px-8 py-2.5 sm:py-6 transition-all ${densityMode === "compact" ? "scale-[0.98] origin-top" : ""} ${activeTab === "chat" ? "flex-1 overflow-hidden flex flex-col w-full" : ""}`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(AnimatePresence, { mode: "wait", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("main", { className: `w-full max-w-4xl mx-auto px-2 sm:px-4 lg:px-8 py-2.5 sm:py-6 transition-all ${activeTab === "chat" ? "flex-1 overflow-hidden flex flex-col w-full" : ""}`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(AnimatePresence, { mode: "wait", children: [
       activeTab === "calendar" && /* @__PURE__ */ jsxRuntimeExports.jsx(
         motion.div,
         {

@@ -10,6 +10,14 @@ export interface League {
   inviteJoins?: number;
 }
 
+export interface NotificationPreferences {
+  enabled: boolean;
+  messages: boolean;
+  boardPosts: boolean;
+  ideas: boolean;
+  events: boolean;
+}
+
 export interface Member {
   userId: string;
   displayName: string;
@@ -20,6 +28,7 @@ export interface Member {
   interests?: string[];
   createdAt: string;
   leagueIds?: string[]; // Groups the user belongs to
+  notificationPreferences?: NotificationPreferences;
 }
 
 export interface Activity {

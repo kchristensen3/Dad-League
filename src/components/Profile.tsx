@@ -3,10 +3,42 @@ import { User, deleteUser } from 'firebase/auth';
 import { doc, updateDoc, deleteDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
-import { Member } from '../types';
-import { LogOut, MapPin, Clock, Save, Hash, X, Trash2, AlertTriangle, ShieldCheck, FileText, Download, Smartphone, Terminal, Check, FolderDown } from 'lucide-react';
+import { Member, NotificationPreferences } from '../types';
+import { 
+  LogOut, 
+  MapPin, 
+  Clock, 
+  Save, 
+  Hash, 
+  X, 
+  Trash2, 
+  AlertTriangle, 
+  ShieldCheck, 
+  FileText, 
+  Download, 
+  Smartphone, 
+  Terminal, 
+  Check, 
+  FolderDown,
+  Bell,
+  BellRing,
+  BellOff,
+  MessageCircle,
+  MessageSquare,
+  Lightbulb,
+  Calendar,
+  Volume2,
+  CheckCircle2
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import LegalModal from './LegalModal';
+import { 
+  getStoredPreferences, 
+  saveStoredPreferences, 
+  requestDeviceNotificationPermission, 
+  getNotificationPermissionStatus, 
+  playNotificationChime 
+} from '../lib/notificationService';
 
 export default function Profile({ 
   user, 
@@ -33,6 +65,16 @@ export default function Profile({
   const [legalModalTab, setLegalModalTab] = useState<'privacy' | 'terms' | null>(null);
   const [showExportGuide, setShowExportGuide] = useState(false);
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
+
+  // Notification Preferences State
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>(() => {
+    return member?.notificationPreferences || getStoredPreferences();
+  });
+  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission | 'unsupported'>(() => {
+    return getNotificationPermissionStatus();
+  });
+  const [isSavingPrefs, setIsSavingPrefs] = useState(false);
+  const [prefsStatusMessage, setPrefsStatusMessage] = useState<string | null>(null);
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -67,14 +109,71 @@ export default function Profile({
     };
   }, [user]);
 
+  useEffect(() => {
+    if (member?.notificationPreferences) {
+      setNotificationPrefs(member.notificationPreferences);
+      saveStoredPreferences(member.notificationPreferences);
+    }
+  }, [member]);
+
+  const handleToggleNotification = (key: keyof Omit<NotificationPreferences, 'enabled'>) => {
+    const updated = {
+      ...notificationPrefs,
+      [key]: !notificationPrefs[key]
+    };
+    setNotificationPrefs(updated);
+    saveStoredPreferences(updated);
+  };
+
+  const handleToggleAll = () => {
+    const nextEnabled = !notificationPrefs.enabled;
+    const updated = {
+      ...notificationPrefs,
+      enabled: nextEnabled
+    };
+    setNotificationPrefs(updated);
+    saveStoredPreferences(updated);
+  };
+
+  const handleRequestPermission = async () => {
+    const res = await requestDeviceNotificationPermission();
+    setPermissionStatus(res);
+    if (res === 'granted') {
+      playNotificationChime();
+      setPrefsStatusMessage('Device notifications enabled!');
+      setTimeout(() => setPrefsStatusMessage(null), 3500);
+    }
+  };
+
+  const handleSaveNotificationPreferences = async () => {
+    setIsSavingPrefs(true);
+    setPrefsStatusMessage(null);
+    try {
+      saveStoredPreferences(notificationPrefs);
+      const memberRef = doc(db, 'members', user.uid);
+      await updateDoc(memberRef, {
+        notificationPreferences: notificationPrefs
+      });
+      setPrefsStatusMessage('Notification settings saved!');
+    } catch (err) {
+      console.warn('Error saving notification preferences:', err);
+      setPrefsStatusMessage('Settings saved locally.');
+    } finally {
+      setIsSavingPrefs(false);
+      setTimeout(() => setPrefsStatusMessage(null), 3500);
+    }
+  };
+
   const handleUpdate = async () => {
     setSaving(true);
     const memberRef = doc(db, 'members', user.uid);
     try {
+      saveStoredPreferences(notificationPrefs);
       await updateDoc(memberRef, { 
         location, 
         availability, 
-        interests 
+        interests,
+        notificationPreferences: notificationPrefs
       });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `members/${user.uid}`);
@@ -202,6 +301,246 @@ export default function Profile({
             className="w-full py-5 bg-indigo-600 text-white rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 disabled:opacity-50 hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-[0.98]"
           >
             {saving ? 'Saving...' : <><Save size={18} /> Update Settings</>}
+          </button>
+        </div>
+      </div>
+
+      {/* Notification Preferences Card */}
+      <div className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+              <BellRing size={20} />
+            </div>
+            <div>
+              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">
+                Notification Preferences
+              </h3>
+              <p className="text-xs text-slate-500">
+                Choose which alerts trigger device notifications & sounds
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={playNotificationChime}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              title="Test the chime sound"
+            >
+              <Volume2 size={13} className="text-indigo-600" />
+              <span>Test Sound</span>
+            </button>
+
+            {permissionStatus === 'granted' ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-black uppercase tracking-wider">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                Active
+              </span>
+            ) : permissionStatus === 'denied' ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold">
+                Blocked in Browser
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleRequestPermission}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs"
+              >
+                <Bell size={12} />
+                <span>Enable Device Alerts</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Master Switch */}
+        <div className="flex items-center justify-between p-4 bg-indigo-50/60 rounded-2xl border border-indigo-100/80">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0">
+              {notificationPrefs.enabled ? <Bell size={16} /> : <BellOff size={16} />}
+            </div>
+            <div>
+              <div className="text-sm font-black text-indigo-950">
+                {notificationPrefs.enabled ? 'All Notifications Enabled' : 'Notifications Paused'}
+              </div>
+              <div className="text-xs text-indigo-700">
+                {notificationPrefs.enabled 
+                  ? 'You will receive alerts according to the categories selected below' 
+                  : 'All device and in-app sound notifications are muted'}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleToggleAll}
+            className={`w-12 h-7 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 ${
+              notificationPrefs.enabled ? 'bg-indigo-600' : 'bg-slate-300'
+            }`}
+          >
+            <div
+              className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${
+                notificationPrefs.enabled ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Categories Grid */}
+        <div className={`space-y-3 transition-opacity ${notificationPrefs.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+            Alert Categories
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Chat Messages */}
+            <div 
+              onClick={() => handleToggleNotification('messages')}
+              className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start justify-between gap-3 ${
+                notificationPrefs.messages 
+                  ? 'bg-white border-indigo-200 shadow-xs ring-1 ring-indigo-500/10' 
+                  : 'bg-slate-50 border-slate-200 opacity-60'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <MessageCircle size={16} />
+                </div>
+                <div>
+                  <div className="text-xs font-black text-slate-900 uppercase tracking-tight">
+                    Chat Messages
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                    New messages in chat channels, event threads, and @ mentions
+                  </div>
+                </div>
+              </div>
+              <div className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors duration-200 shrink-0 ${
+                notificationPrefs.messages ? 'bg-indigo-600' : 'bg-slate-300'
+              }`}>
+                <div className={`bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform duration-200 ${
+                  notificationPrefs.messages ? 'translate-x-4' : 'translate-x-0'
+                }`} />
+              </div>
+            </div>
+
+            {/* Community Board Posts */}
+            <div 
+              onClick={() => handleToggleNotification('boardPosts')}
+              className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start justify-between gap-3 ${
+                notificationPrefs.boardPosts 
+                  ? 'bg-white border-indigo-200 shadow-xs ring-1 ring-indigo-500/10' 
+                  : 'bg-slate-50 border-slate-200 opacity-60'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <MessageSquare size={16} />
+                </div>
+                <div>
+                  <div className="text-xs font-black text-slate-900 uppercase tracking-tight">
+                    Board Posts
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                    New topics, announcements, and articles on the community board
+                  </div>
+                </div>
+              </div>
+              <div className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors duration-200 shrink-0 ${
+                notificationPrefs.boardPosts ? 'bg-indigo-600' : 'bg-slate-300'
+              }`}>
+                <div className={`bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform duration-200 ${
+                  notificationPrefs.boardPosts ? 'translate-x-4' : 'translate-x-0'
+                }`} />
+              </div>
+            </div>
+
+            {/* New Ideas */}
+            <div 
+              onClick={() => handleToggleNotification('ideas')}
+              className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start justify-between gap-3 ${
+                notificationPrefs.ideas 
+                  ? 'bg-white border-indigo-200 shadow-xs ring-1 ring-indigo-500/10' 
+                  : 'bg-slate-50 border-slate-200 opacity-60'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <Lightbulb size={16} />
+                </div>
+                <div>
+                  <div className="text-xs font-black text-slate-900 uppercase tracking-tight">
+                    New Ideas
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                    When a member adds a new activity prompt to the backlog
+                  </div>
+                </div>
+              </div>
+              <div className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors duration-200 shrink-0 ${
+                notificationPrefs.ideas ? 'bg-indigo-600' : 'bg-slate-300'
+              }`}>
+                <div className={`bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform duration-200 ${
+                  notificationPrefs.ideas ? 'translate-x-4' : 'translate-x-0'
+                }`} />
+              </div>
+            </div>
+
+            {/* Scheduled Events */}
+            <div 
+              onClick={() => handleToggleNotification('events')}
+              className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start justify-between gap-3 ${
+                notificationPrefs.events 
+                  ? 'bg-white border-indigo-200 shadow-xs ring-1 ring-indigo-500/10' 
+                  : 'bg-slate-50 border-slate-200 opacity-60'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <Calendar size={16} />
+                </div>
+                <div>
+                  <div className="text-xs font-black text-slate-900 uppercase tracking-tight">
+                    Scheduled Events
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                    When meetups are scheduled or updated on the calendar
+                  </div>
+                </div>
+              </div>
+              <div className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors duration-200 shrink-0 ${
+                notificationPrefs.events ? 'bg-indigo-600' : 'bg-slate-300'
+              }`}>
+                <div className={`bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform duration-200 ${
+                  notificationPrefs.events ? 'translate-x-4' : 'translate-x-0'
+                }`} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Save feedback & Save button */}
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+          {prefsStatusMessage ? (
+            <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">
+              <CheckCircle2 size={14} />
+              <span>{prefsStatusMessage}</span>
+            </div>
+          ) : (
+            <span className="text-[11px] text-slate-400">
+              Preferences are saved to your account and synced across your devices.
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSaveNotificationPreferences}
+            disabled={isSavingPrefs}
+            className="w-full sm:w-auto px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black uppercase tracking-wider text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+          >
+            <Save size={14} />
+            <span>{isSavingPrefs ? 'Saving...' : 'Save Preferences'}</span>
           </button>
         </div>
       </div>

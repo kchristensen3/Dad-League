@@ -5,7 +5,7 @@ import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, arrayUn
 import { db } from '../lib/firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 import { Session, Activity, Member, League, Message } from '../types';
-import { formatGooglePlaceLocation, formatBacklogLocationForEvent } from '../lib/locationUtils';
+import { formatGooglePlaceLocation, formatBacklogLocationForEvent, parseLocationDisplay, formatVenueAndAddress } from '../lib/locationUtils';
 import { 
   Calendar as CalendarIcon, 
   MapPin, 
@@ -79,6 +79,7 @@ export default function CalendarView({ user, leagueId, sessions, onNavigateToCha
 
   // Selected event to view full details + live chat thread modal
   const [selectedEventForModal, setSelectedEventForModal] = useState<Session | null>(null);
+  const [modalInitialEdit, setModalInitialEdit] = useState(false);
 
   const defaultDT = getDefaultEventDateTime();
   const [eventName, setEventName] = useState('');
@@ -86,7 +87,8 @@ export default function CalendarView({ user, leagueId, sessions, onNavigateToCha
   const [hostId, setHostId] = useState(user.uid);
   const [eventDate, setEventDate] = useState(defaultDT.date);
   const [eventTime, setEventTime] = useState(defaultDT.time);
-  const [location, setLocation] = useState('');
+  const [venueName, setVenueName] = useState('');
+  const [locationAddress, setLocationAddress] = useState('');
   const [description, setDescription] = useState('');
   const [eventUrl, setEventUrl] = useState('');
 
@@ -142,12 +144,13 @@ export default function CalendarView({ user, leagueId, sessions, onNavigateToCha
 
     try {
       const combinedDate = new Date(`${eventDate}T${eventTime || '18:00'}`).toISOString();
+      const combinedLocation = formatVenueAndAddress(venueName, locationAddress);
       const sessionData: any = {
         leagueId,
         date: combinedDate,
-        activityName: eventName,
+        activityName: eventName.trim(),
         activityType: activityType,
-        location,
+        location: combinedLocation,
         description,
         hostId,
         hostName: host?.displayName || 'Host',
@@ -169,7 +172,8 @@ export default function CalendarView({ user, leagueId, sessions, onNavigateToCha
       setHostId(user.uid);
       setEventDate(resetDT.date);
       setEventTime(resetDT.time);
-      setLocation('');
+      setVenueName('');
+      setLocationAddress('');
       setDescription('');
       setEventUrl('');
     } catch (err) {
@@ -461,7 +465,9 @@ export default function CalendarView({ user, leagueId, sessions, onNavigateToCha
                     setEventName(activity.title);
                     setActivityType(activity.category || 'Casual Hangout');
                     const formattedLoc = formatBacklogLocationForEvent(activity.location, activity.title);
-                    if (formattedLoc) setLocation(formattedLoc);
+                    const parsed = parseLocationDisplay(formattedLoc);
+                    setVenueName(parsed.venueName || (parsed.hasVenue ? parsed.fullLocation : ''));
+                    setLocationAddress(parsed.address || (!parsed.hasVenue ? parsed.fullLocation : ''));
                     if (activity.description) setDescription(activity.description);
                   }
                 }}
@@ -542,33 +548,53 @@ export default function CalendarView({ user, leagueId, sessions, onNavigateToCha
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-2">Location/Address</label>
-                  <Autocomplete
-                    apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
-                    onPlaceSelected={(place) => {
-                      setLocation(formatGooglePlaceLocation(place));
-                    }}
-                    value={location}
-                    onChange={(e: any) => setLocation(e.target.value)}
-                    options={{
-                      types: ["geocode", "establishment"],
-                    }}
-                    placeholder="e.g. Pine Valley Golf Club"
-                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-2 flex items-center justify-between">
+                    <span>Place / Venue Name</span>
+                    <span className="text-indigo-600 font-bold lowercase">shown prominently</span>
+                  </label>
+                  <input
+                    value={venueName}
+                    onChange={e => setVenueName(e.target.value)}
+                    placeholder="e.g. HopCat, Topgolf, Comerica Park"
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-2 flex items-center gap-1">
-                    <LinkIcon size={12} className="text-indigo-500" /> Event URL / Link (Optional)
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-2">
+                    Address / Maps Search
                   </label>
-                  <input 
-                    type="url"
-                    value={eventUrl}
-                    onChange={e => setEventUrl(e.target.value)}
-                    placeholder="https://... (tickets, venue site, reservation)"
+                  <Autocomplete
+                    apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
+                    onPlaceSelected={(place: any) => {
+                      const name = typeof place.name === 'string' ? place.name.trim() : '';
+                      const addr = typeof place.formatted_address === 'string' ? place.formatted_address.trim() : '';
+                      if (name && !/^\d+$/.test(name)) {
+                        setVenueName(name);
+                      }
+                      setLocationAddress(addr || name);
+                    }}
+                    value={locationAddress}
+                    onChange={(e: any) => setLocationAddress(e.target.value)}
+                    options={{
+                      types: ["geocode", "establishment"],
+                    }}
+                    placeholder="e.g. 4200 Woodward Ave or search establishment"
                     className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-2 flex items-center gap-1">
+                  <LinkIcon size={12} className="text-indigo-500" /> Event URL / Link (Optional)
+                </label>
+                <input 
+                  type="url"
+                  value={eventUrl}
+                  onChange={e => setEventUrl(e.target.value)}
+                  placeholder="https://... (tickets, venue site, reservation)"
+                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-2">Details / Why we should do it</label>
@@ -747,7 +773,14 @@ export default function CalendarView({ user, leagueId, sessions, onNavigateToCha
                   session={session}
                   user={user}
                   members={members}
-                  onSelectEvent={() => setSelectedEventForModal(session)}
+                  onSelectEvent={() => {
+                    setSelectedEventForModal(session);
+                    setModalInitialEdit(false);
+                  }}
+                  onEditEvent={() => {
+                    setSelectedEventForModal(session);
+                    setModalInitialEdit(true);
+                  }}
                 />
               );
             }
@@ -762,7 +795,14 @@ export default function CalendarView({ user, leagueId, sessions, onNavigateToCha
                 members={members}
                 currentUser={user}
                 onChatClick={() => onNavigateToChat(session.id)}
-                onSelectEvent={() => setSelectedEventForModal(session)}
+                onSelectEvent={() => {
+                  setSelectedEventForModal(session);
+                  setModalInitialEdit(false);
+                }}
+                onEditEvent={() => {
+                  setSelectedEventForModal(session);
+                  setModalInitialEdit(true);
+                }}
               />
             );
           })
@@ -773,10 +813,14 @@ export default function CalendarView({ user, leagueId, sessions, onNavigateToCha
       <AnimatePresence>
         {selectedEventForModal && (
           <EventDetailsAndChatModal
-            session={selectedEventForModal}
+            session={sessions.find(s => s.id === selectedEventForModal.id) || selectedEventForModal}
             user={user}
             members={members}
-            onClose={() => setSelectedEventForModal(null)}
+            initialEditMode={modalInitialEdit}
+            onClose={() => {
+              setSelectedEventForModal(null);
+              setModalInitialEdit(false);
+            }}
             onNavigateToChat={onNavigateToChat}
             getMapsLink={getMapsLink}
           />
@@ -791,16 +835,19 @@ function CompactSessionRow({
   session, 
   user, 
   members, 
-  onSelectEvent 
+  onSelectEvent,
+  onEditEvent
 }: { 
   session: Session, 
   user: User, 
   members: Member[], 
-  onSelectEvent: () => void 
+  onSelectEvent: () => void,
+  onEditEvent: () => void
 }) {
   const date = new Date(session.date);
   const isGoing = session.attendees.includes(user.uid);
   const isDeclined = session.declined?.includes(user.uid);
+  const locInfo = parseLocationDisplay(session.location);
 
   const handleRSVP = async (going: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -859,9 +906,12 @@ function CompactSessionRow({
           <span className="text-slate-600 font-bold">
             {date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
           </span>
-          {session.location && (
-            <span className="truncate max-w-[120px] sm:max-w-[200px]">
-              • {session.location}
+          {locInfo.fullLocation && (
+            <span className="truncate max-w-[130px] sm:max-w-[200px] text-slate-700">
+              • <strong className="font-bold text-slate-900">{locInfo.venueName || locInfo.address}</strong>
+              {locInfo.venueName && locInfo.address && (
+                <span className="text-slate-400 font-normal ml-1 hidden md:inline">({locInfo.address})</span>
+              )}
             </span>
           )}
           <span>• {session.attendees.length} in</span>
@@ -869,8 +919,8 @@ function CompactSessionRow({
         </div>
       </div>
 
-      {/* Quick RSVP Pill & Chat Details */}
-      <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
+      {/* Quick RSVP Pill, Edit, & Chat Details */}
+      <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
         <button
           disabled={session.status === 'cancelled'}
           onClick={(e) => handleRSVP(!isGoing, e)}
@@ -887,8 +937,19 @@ function CompactSessionRow({
         </button>
 
         <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onEditEvent();
+          }}
+          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+          title="Edit Event"
+        >
+          <Pencil size={13} />
+        </button>
+
+        <button
           onClick={onSelectEvent}
-          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
           title="View Details & Chat"
         >
           <ChevronRight size={15} />
@@ -898,7 +959,7 @@ function CompactSessionRow({
   );
 }
 
-function SessionCard({ session, activities, getCalendarLink, getMapsLink, members, currentUser, onChatClick, onSelectEvent }: { 
+function SessionCard({ session, activities, getCalendarLink, getMapsLink, members, currentUser, onChatClick, onSelectEvent, onEditEvent }: { 
   session: Session, 
   activities: Activity[], 
   getCalendarLink: (s: Session, a?: Activity) => string,
@@ -907,6 +968,7 @@ function SessionCard({ session, activities, getCalendarLink, getMapsLink, member
   currentUser: User,
   onChatClick: () => void,
   onSelectEvent: () => void,
+  onEditEvent?: () => void,
   key?: any
 }) {
   const activity = activities.find(a => a.id === session.activityId);
@@ -1142,22 +1204,22 @@ function SessionCard({ session, activities, getCalendarLink, getMapsLink, member
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  {isHost && session.status !== 'cancelled' && (
+                  {session.status !== 'cancelled' && (
                     <>
                       <button 
                         onClick={() => setIsEditing(true)}
-                        className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
+                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
                         title="Edit Event"
                       >
-                        <Pencil size={20} />
+                        <Pencil size={18} />
                       </button>
                       <div className="relative">
                         <button 
                           onClick={() => setShowCancelConfirm(!showCancelConfirm)}
-                          className={`p-2 rounded-lg transition-all cursor-pointer ${showCancelConfirm ? 'bg-rose-100 text-rose-600' : 'text-slate-300 hover:text-rose-500 hover:bg-rose-50'}`}
+                          className={`p-2 rounded-lg transition-all cursor-pointer ${showCancelConfirm ? 'bg-rose-100 text-rose-600' : 'text-slate-400 hover:text-rose-500 hover:bg-rose-50'}`}
                           title="Cancel Event"
                         >
-                          <XCircle size={20} />
+                          <XCircle size={18} />
                         </button>
                         <AnimatePresence>
                           {showCancelConfirm && (
@@ -1195,7 +1257,7 @@ function SessionCard({ session, activities, getCalendarLink, getMapsLink, member
                     className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                     title="Add to Google Calendar"
                   >
-                    <CalendarPlus size={20} />
+                    <CalendarPlus size={18} />
                   </a>
                 </div>
               </div>
@@ -1218,17 +1280,29 @@ function SessionCard({ session, activities, getCalendarLink, getMapsLink, member
                   <Clock size={15} className="text-indigo-500" />
                   {date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                 </div>
-                {session.location && (
-                  <a 
-                    href={getMapsLink(session.location)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 hover:text-indigo-600 transition-colors"
-                  >
-                    <MapPin size={15} className="text-indigo-500" />
-                    <span className="truncate max-w-[200px]">{session.location}</span>
-                  </a>
-                )}
+                {session.location && (() => {
+                  const loc = parseLocationDisplay(session.location);
+                  return (
+                    <a 
+                      href={getMapsLink(session.location)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 hover:text-indigo-600 transition-colors bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-100"
+                    >
+                      <MapPin size={14} className="text-indigo-500 shrink-0" />
+                      <div className="flex flex-col text-left">
+                        <span className="font-bold text-slate-900 text-xs leading-tight">
+                          {loc.venueName || loc.address}
+                        </span>
+                        {loc.venueName && loc.address && (
+                          <span className="text-[10px] text-slate-500 font-normal leading-tight truncate max-w-[200px]">
+                            {loc.address}
+                          </span>
+                        )}
+                      </div>
+                    </a>
+                  );
+                })()}
                 {session.url && (
                   <a 
                     href={session.url}
@@ -1336,11 +1410,12 @@ function SessionCard({ session, activities, getCalendarLink, getMapsLink, member
   );
 }
 
-// Embedded Event Details & Live Chat Thread Modal
+// Embedded Event Details, In-Place Editing & Live Chat Thread Modal (Non-scrolling viewport design)
 function EventDetailsAndChatModal({
   session,
   user,
   members,
+  initialEditMode = false,
   onClose,
   onNavigateToChat,
   getMapsLink
@@ -1348,10 +1423,36 @@ function EventDetailsAndChatModal({
   session: Session;
   user: User;
   members: Member[];
+  initialEditMode?: boolean;
   onClose: () => void;
   onNavigateToChat: (threadId: string) => void;
   getMapsLink: (loc: string) => string;
 }) {
+  const [activeTab, setActiveTab] = useState<'details' | 'chat'>('details');
+  const [isEditing, setIsEditing] = useState(initialEditMode);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [isUpdatingRSVP, setIsUpdatingRSVP] = useState(false);
+
+  // Parse location into Venue Name vs Street Address
+  const locInfo = parseLocationDisplay(session.location);
+
+  // Edit form state
+  const sessionDateObj = new Date(session.date);
+  const initialDateStr = !isNaN(sessionDateObj.getTime()) ? sessionDateObj.toISOString().slice(0, 10) : '';
+  const initialTimeStr = !isNaN(sessionDateObj.getTime()) ? sessionDateObj.toTimeString().slice(0, 5) : '18:00';
+
+  const [editName, setEditName] = useState(session.activityName);
+  const [editType, setEditType] = useState(session.activityType || 'Casual Hangout');
+  const [editHostId, setEditHostId] = useState(session.hostId || user.uid);
+  const [editDatePart, setEditDatePart] = useState(initialDateStr);
+  const [editTimePart, setEditTimePart] = useState(initialTimeStr);
+  const [editVenueName, setEditVenueName] = useState(locInfo.venueName);
+  const [editAddress, setEditAddress] = useState(locInfo.address || (!locInfo.hasVenue ? locInfo.fullLocation : ''));
+  const [editDescription, setEditDescription] = useState(session.description || '');
+  const [editUrl, setEditUrl] = useState(session.url || '');
+
+  // Live Chat state
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -1373,8 +1474,10 @@ function EventDetailsAndChatModal({
   }, [session.id]);
 
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (activeTab === 'chat') {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, activeTab]);
 
   const handleSendMessage = async (e: FormEvent) => {
     e.preventDefault();
@@ -1402,198 +1505,573 @@ function EventDetailsAndChatModal({
   const isDeclined = session.declined?.includes(user.uid);
 
   const handleRSVP = async (going: boolean) => {
-    const docRef = doc(db, 'sessions', session.id);
-    if (going) {
+    if (session.status === 'cancelled' || isUpdatingRSVP) return;
+    setIsUpdatingRSVP(true);
+    try {
+      const docRef = doc(db, 'sessions', session.id);
+      if (going) {
+        await updateDoc(docRef, {
+          attendees: arrayUnion(user.uid),
+          declined: arrayRemove(user.uid)
+        });
+      } else {
+        await updateDoc(docRef, {
+          attendees: arrayRemove(user.uid),
+          declined: arrayUnion(user.uid)
+        });
+      }
+    } catch (err) {
+      console.error("RSVP update error:", err);
+    } finally {
+      setIsUpdatingRSVP(false);
+    }
+  };
+
+  const handleSaveEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editName.trim() || !editDatePart || isSavingEdit) return;
+
+    setIsSavingEdit(true);
+    try {
+      const hostMember = members.find(m => m.userId === editHostId);
+      const combinedDate = new Date(`${editDatePart}T${editTimePart || '18:00'}`).toISOString();
+      const combinedLocation = formatVenueAndAddress(editVenueName, editAddress);
+
+      const docRef = doc(db, 'sessions', session.id);
       await updateDoc(docRef, {
-        attendees: arrayUnion(user.uid),
-        declined: arrayRemove(user.uid)
+        activityName: editName.trim(),
+        activityType: editType,
+        hostId: editHostId,
+        hostName: hostMember?.displayName || session.hostName || 'Host',
+        date: combinedDate,
+        location: combinedLocation,
+        url: editUrl.trim() || null,
+        description: editDescription.trim(),
+        updatedAt: serverTimestamp()
       });
-    } else {
+
+      setIsEditing(false);
+    } catch (err) {
+      console.error("Error saving event changes:", err);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleCancelSession = async () => {
+    try {
+      const docRef = doc(db, 'sessions', session.id);
       await updateDoc(docRef, {
-        attendees: arrayRemove(user.uid),
-        declined: arrayUnion(user.uid)
+        status: 'cancelled',
+        updatedAt: serverTimestamp()
       });
+      setShowCancelConfirm(false);
+      setIsEditing(false);
+    } catch (err) {
+      console.error("Error cancelling session:", err);
     }
   };
 
   const date = new Date(session.date);
+  const formattedCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(session.activityName)}&dates=${date.toISOString().replace(/[-:]/g, '').split('.')[0]}Z/${new Date(date.getTime() + 2 * 3600000).toISOString().replace(/[-:]/g, '').split('.')[0]}Z&details=${encodeURIComponent(session.description || '')}&location=${encodeURIComponent(session.location || '')}`;
+
+  const latestMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+  const getMemberData = (uid: string) => members.find(m => m.userId === uid);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/60 backdrop-blur-xs">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-xl overflow-hidden flex flex-col h-[88vh] max-h-[640px]"
       >
         {/* Modal Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-md">
+        <div className="p-3.5 sm:p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
               📅
             </div>
             <div className="min-w-0">
-              <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest block truncate">
-                Event Details & Chat Thread
-              </span>
-              <h2 className="text-lg sm:text-xl font-black text-slate-900 leading-tight truncate">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-black uppercase text-indigo-600 tracking-wider">
+                  {session.activityType || 'Meetup'}
+                </span>
+                {session.status === 'cancelled' && (
+                  <span className="text-[8px] font-black uppercase bg-rose-100 text-rose-700 px-1.5 py-0.2 rounded-md">
+                    Cancelled
+                  </span>
+                )}
+              </div>
+              <h2 className="text-base sm:text-lg font-black text-slate-900 leading-tight truncate">
                 {session.activityName}
               </h2>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer shrink-0 ml-2"
-          >
-            <X size={20} />
-          </button>
-        </div>
 
-        {/* Scrollable Body: Event Details + Live Chat */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 custom-scrollbar">
-          {/* Details Card */}
-          <div className="bg-slate-50 rounded-2xl border border-slate-200/80 p-4 sm:p-5 space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-black uppercase tracking-wider">
-                {session.activityType || 'Meetup'}
-              </span>
-              <span className="px-3 py-1 bg-slate-200 text-slate-700 rounded-full text-xs font-black uppercase tracking-wider">
-                Host: {session.hostName}
-              </span>
-              <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
-                session.status === 'cancelled' ? 'bg-rose-100 text-rose-700' : isGoing ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
-              }`}>
-                {session.status === 'cancelled' ? 'Cancelled' : isGoing ? 'You are In!' : isDeclined ? 'Declined' : 'RSVP Pending'}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-slate-700 font-medium">
-              <div className="flex items-center gap-2">
-                <CalendarIcon size={16} className="text-indigo-600 shrink-0" />
-                <span>{date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock size={16} className="text-indigo-600 shrink-0" />
-                <span>{date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
-              </div>
-              {session.location && (
-                <a
-                  href={getMapsLink(session.location)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-indigo-600 hover:underline sm:col-span-2"
-                >
-                  <MapPin size={16} className="shrink-0" />
-                  <span className="truncate">{session.location}</span>
-                </a>
-              )}
-              {session.url && (
-                <a
-                  href={session.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-indigo-600 hover:underline sm:col-span-2 font-bold"
-                >
-                  <ExternalLink size={16} className="shrink-0" />
-                  <span className="truncate">{session.url}</span>
-                </a>
-              )}
-            </div>
-
-            {session.description && (
-              <p className="text-sm text-slate-600 bg-white p-3.5 rounded-xl border border-slate-200/60 leading-relaxed italic">
-                "{session.description}"
-              </p>
+          <div className="flex items-center gap-1 shrink-0">
+            {!isEditing ? (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:text-indigo-600 hover:bg-white rounded-xl transition-all border border-slate-200 shadow-2xs cursor-pointer"
+                title="Edit event details"
+              >
+                <Pencil size={13} />
+                <span>Edit</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsEditing(false)}
+                className="px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+              >
+                Back
+              </button>
             )}
 
-            {/* RSVP Buttons */}
-            <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/60">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase text-slate-400">RSVP:</span>
-                <button
-                  onClick={() => handleRSVP(true)}
-                  className={`px-4 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
-                    isGoing ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-emerald-50'
-                  }`}
-                >
-                  I'm In
-                </button>
-                <button
-                  onClick={() => handleRSVP(false)}
-                  className={`px-4 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
-                    isDeclined ? 'bg-rose-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-rose-50'
-                  }`}
-                >
-                  Can't Make It
-                </button>
-              </div>
-
-              <div className="text-xs font-bold text-slate-500">
-                {session.attendees.length} attending
-              </div>
-            </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+            >
+              <X size={18} />
+            </button>
           </div>
+        </div>
 
-          {/* Dedicated Event Chat Section */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <MessageCircle size={14} className="text-indigo-600" />
-                Event Discussion ({messages.length})
-              </h4>
+        {/* Immediate RSVP Bar (Directly below header - change RSVP without scrolling) */}
+        {!isEditing && (
+          <div className="bg-slate-50/90 border-b border-slate-200/80 px-3.5 sm:px-4 py-2 flex items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider shrink-0">Your RSVP:</span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider truncate ${
+                isGoing 
+                  ? 'bg-emerald-100 text-emerald-800' 
+                  : isDeclined 
+                  ? 'bg-rose-100 text-rose-700' 
+                  : 'bg-slate-200 text-slate-600'
+              }`}>
+                {isGoing ? "✓ You're In" : isDeclined ? "✕ Can't Make It" : "⏳ Pending"}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
-                onClick={() => {
-                  onNavigateToChat(session.id);
-                  onClose();
-                }}
-                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+                disabled={session.status === 'cancelled' || isUpdatingRSVP}
+                onClick={() => handleRSVP(true)}
+                className={`px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
+                  isGoing 
+                    ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-300' 
+                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
               >
-                Open in Full Chat &rarr;
+                <span>✓</span> I'm In
+              </button>
+              <button
+                disabled={session.status === 'cancelled' || isUpdatingRSVP}
+                onClick={() => handleRSVP(false)}
+                className={`px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
+                  isDeclined 
+                    ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-300' 
+                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
+              >
+                <span>✕</span> Can't Make It
               </button>
             </div>
+          </div>
+        )}
 
-            <div className="h-56 overflow-y-auto bg-slate-50 rounded-2xl border border-slate-200 p-3 space-y-2.5 custom-scrollbar">
-              {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 p-4">
-                  <p className="text-xs font-bold">No messages in this event chat yet.</p>
-                  <p className="text-[11px] text-slate-400">Start the conversation about timing, rides, or prep!</p>
+        {/* Tab Switcher (Details vs Live Chat) */}
+        {!isEditing && (
+          <div className="flex border-b border-slate-200 bg-white shrink-0 px-2">
+            <button
+              onClick={() => setActiveTab('details')}
+              className={`flex-1 py-2 text-xs font-black uppercase tracking-wider transition-all border-b-2 flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeTab === 'details'
+                  ? 'border-indigo-600 text-indigo-600'
+                  : 'border-transparent text-slate-400 hover:text-slate-700'
+              }`}
+            >
+              <CalendarIcon size={14} />
+              <span>Event Details</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={`flex-1 py-2 text-xs font-black uppercase tracking-wider transition-all border-b-2 flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeTab === 'chat'
+                  ? 'border-indigo-600 text-indigo-600'
+                  : 'border-transparent text-slate-400 hover:text-slate-700'
+              }`}
+            >
+              <MessageCircle size={14} />
+              <span>Discussion ({messages.length})</span>
+            </button>
+          </div>
+        )}
+
+        {/* Body Container */}
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+          {/* 1. EDIT MODE */}
+          {isEditing ? (
+            <form onSubmit={handleSaveEdit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 custom-scrollbar">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-500">Edit Event Information</span>
+                {session.status !== 'cancelled' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCancelConfirm(!showCancelConfirm)}
+                    className="text-[10px] font-bold text-rose-600 hover:text-rose-800 uppercase tracking-wider cursor-pointer"
+                  >
+                    Cancel Event
+                  </button>
+                )}
+              </div>
+
+              {showCancelConfirm && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-2">
+                  <p className="text-xs font-bold text-rose-800">Are you sure you want to cancel this event for the group?</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCancelSession}
+                      className="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-rose-700"
+                    >
+                      Yes, Cancel Event
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowCancelConfirm(false)}
+                      className="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-bold uppercase tracking-wider"
+                    >
+                      Back
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                messages.map(m => {
-                  const isMine = m.senderId === user.uid;
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Event Name</label>
+                  <input
+                    value={editName}
+                    onChange={e => setEditName(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Activity Type</label>
+                  <select
+                    value={editType}
+                    onChange={e => setEditType(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="Active Sports & Exercise">Active Sports & Exercise</option>
+                    <option value="Games / Hobbies">Games / Hobbies</option>
+                    <option value="Event (Game, Concert, etc.)">Event (Game, Concert, etc.)</option>
+                    <option value="Casual Hangout">Casual Hangout</option>
+                    <option value="Helping Out">Helping Out</option>
+                    <option value="Food & Beverage">Food & Beverage</option>
+                    <option value="Trip / Travel">Trip / Travel</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Host</label>
+                  <select
+                    value={editHostId}
+                    onChange={e => setEditHostId(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {members.map(m => (
+                      <option key={m.userId} value={m.userId}>{m.displayName}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Date</label>
+                  <input
+                    type="date"
+                    value={editDatePart}
+                    onChange={e => setEditDatePart(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Time</label>
+                  <input
+                    type="time"
+                    value={editTimePart}
+                    onChange={e => setEditTimePart(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Location: Place Name + Address */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1 flex items-center justify-between">
+                    <span>Place / Venue Name</span>
+                    <span className="text-indigo-600 font-bold lowercase">headline</span>
+                  </label>
+                  <input
+                    value={editVenueName}
+                    onChange={e => setEditVenueName(e.target.value)}
+                    placeholder="e.g. HopCat, Topgolf, Ford Field"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">
+                    Address / Maps
+                  </label>
+                  <Autocomplete
+                    apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
+                    onPlaceSelected={(place: any) => {
+                      const name = typeof place.name === 'string' ? place.name.trim() : '';
+                      const addr = typeof place.formatted_address === 'string' ? place.formatted_address.trim() : '';
+                      if (name && !/^\d+$/.test(name)) {
+                        setEditVenueName(name);
+                      }
+                      setEditAddress(addr || name);
+                    }}
+                    value={editAddress}
+                    onChange={(e: any) => setEditAddress(e.target.value)}
+                    options={{
+                      types: ["geocode", "establishment"],
+                    }}
+                    placeholder="Search address or venue"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1 flex items-center gap-1">
+                  <LinkIcon size={12} className="text-indigo-500" /> Event Link / Website (Optional)
+                </label>
+                <input
+                  type="url"
+                  value={editUrl}
+                  onChange={e => setEditUrl(e.target.value)}
+                  placeholder="https://... (tickets, venue info)"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Details & Notes</label>
+                <textarea
+                  value={editDescription}
+                  onChange={e => setEditDescription(e.target.value)}
+                  placeholder="Event details..."
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[70px]"
+                />
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                >
+                  <Save size={13} />
+                  <span>{isSavingEdit ? 'Saving...' : 'Save Changes'}</span>
+                </button>
+              </div>
+            </form>
+          ) : activeTab === 'details' ? (
+            /* 2. NON-SCROLLING DETAILS VIEW (Fits within ~350px viewport height!) */
+            <div className="p-3.5 sm:p-5 space-y-3.5 flex flex-col justify-between h-full overflow-y-auto custom-scrollbar">
+              <div className="space-y-3">
+                {/* Date & Time Row */}
+                <div className="flex items-center justify-between gap-3 bg-slate-50 p-2.5 sm:p-3 rounded-2xl border border-slate-200/70">
+                  <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-800 font-bold min-w-0">
+                    <CalendarIcon size={15} className="text-indigo-600 shrink-0" />
+                    <span className="truncate">
+                      {date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </span>
+                    <span className="text-slate-300">•</span>
+                    <Clock size={15} className="text-indigo-600 shrink-0" />
+                    <span>
+                      {date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                    </span>
+                  </div>
+
+                  <a
+                    href={formattedCalendarUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 rounded-lg border border-slate-200 text-[10px] font-bold uppercase tracking-tight shrink-0 transition-colors"
+                    title="Add to Google Calendar"
+                  >
+                    <CalendarPlus size={12} />
+                    <span>Calendar</span>
+                  </a>
+                </div>
+
+                {/* Venue Name & Location Card (Prominently displays the Place Name!) */}
+                {session.location && (() => {
                   return (
-                    <div key={m.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                      <div className={`max-w-[85%] px-3.5 py-2 rounded-2xl text-xs ${
-                        isMine ? 'bg-indigo-600 text-white rounded-br-xs' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-xs'
-                      }`}>
-                        {!isMine && <div className="font-black text-[10px] text-indigo-600 mb-0.5">{m.senderName}</div>}
-                        <div>{m.text}</div>
+                    <div className="flex items-start gap-2.5 bg-indigo-50/50 p-2.5 sm:p-3 rounded-2xl border border-indigo-100/80">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                        <MapPin size={15} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[9px] font-black uppercase text-indigo-700 tracking-wider">Venue / Place</span>
+                          <a
+                            href={getMapsLink(session.location)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5 shrink-0"
+                          >
+                            Maps ↗
+                          </a>
+                        </div>
+                        <div className="text-sm font-black text-slate-900 leading-tight mt-0.5">
+                          {locInfo.venueName || locInfo.address}
+                        </div>
+                        {locInfo.venueName && locInfo.address && (
+                          <div className="text-[11px] text-slate-500 font-medium leading-tight mt-0.5 truncate">
+                            {locInfo.address}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
-                })
-              )}
-              <div ref={chatBottomRef} />
-            </div>
+                })()}
 
-            {/* Event Chat Quick Reply Input */}
-            <form onSubmit={handleSendMessage} className="flex gap-2">
-              <input
-                type="text"
-                value={inputText}
-                onChange={e => setInputText(e.target.value)}
-                placeholder="Ask a question or post an update for this event..."
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <button
-                type="submit"
-                disabled={!inputText.trim() || isSending}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 disabled:opacity-40 transition-all cursor-pointer flex items-center gap-1"
+                {/* Host & External URL row */}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <div className="flex items-center gap-1 px-2.5 py-1 bg-slate-100 rounded-lg text-slate-700 font-bold">
+                    <UserIcon size={12} className="text-indigo-600" />
+                    <span>Host: {session.hostName}</span>
+                  </div>
+
+                  {session.url && (
+                    <a
+                      href={session.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg border border-indigo-200 transition-colors truncate max-w-[220px]"
+                    >
+                      <ExternalLink size={12} className="shrink-0" />
+                      <span className="truncate">Event Website / Tickets</span>
+                    </a>
+                  )}
+                </div>
+
+                {/* Attendees Roster Strip */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    <span>Who's In ({session.attendees.length})</span>
+                    {session.declined && session.declined.length > 0 && (
+                      <span>{session.declined.length} Declined</span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
+                    {session.attendees.map(uid => {
+                      const m = getMemberData(uid);
+                      return (
+                        <div key={uid} className="flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
+                          <img
+                            src={m?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`}
+                            className="w-4 h-4 rounded-full object-cover"
+                            alt=""
+                          />
+                          <span className="text-[10px] font-bold text-emerald-800 truncate max-w-[90px]">
+                            {m?.displayName || (uid === user.uid ? 'You' : 'Member')}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Description Quote (if provided) */}
+                {session.description && (
+                  <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 leading-relaxed italic line-clamp-2">
+                    "{session.description}"
+                  </p>
+                )}
+              </div>
+
+              {/* Bottom Quick Jump to Chat Strip */}
+              <div 
+                onClick={() => setActiveTab('chat')}
+                className="bg-indigo-50/70 hover:bg-indigo-100/70 border border-indigo-200/70 rounded-2xl p-2.5 flex items-center justify-between cursor-pointer transition-colors shrink-0"
               >
-                <Send size={14} /> Send
-              </button>
-            </form>
-          </div>
+                <div className="flex items-center gap-2 min-w-0">
+                  <MessageCircle size={15} className="text-indigo-600 shrink-0" />
+                  <span className="text-xs text-slate-700 truncate font-medium">
+                    {latestMessage 
+                      ? `${latestMessage.senderName}: "${latestMessage.text}"` 
+                      : 'No chat messages yet. Tap to start thread!'}
+                  </span>
+                </div>
+                <span className="text-[10px] font-black uppercase text-indigo-600 tracking-wider shrink-0 ml-2">
+                  Chat ({messages.length}) &rarr;
+                </span>
+              </div>
+            </div>
+          ) : (
+            /* 3. LIVE CHAT TAB */
+            <div className="flex-1 flex flex-col min-h-0 p-3 sm:p-4 space-y-2.5">
+              <div className="flex-1 overflow-y-auto bg-slate-50 rounded-2xl border border-slate-200 p-3 space-y-2.5 custom-scrollbar min-h-0">
+                {messages.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 p-4">
+                    <MessageCircle size={24} className="text-slate-300 mb-1" />
+                    <p className="text-xs font-bold">No messages in this event chat yet.</p>
+                    <p className="text-[11px] text-slate-400">Coordinate rides, timing, tickets, or prep with the guys!</p>
+                  </div>
+                ) : (
+                  messages.map(m => {
+                    const isMine = m.senderId === user.uid;
+                    return (
+                      <div key={m.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                        <div className={`max-w-[85%] px-3 py-1.5 rounded-2xl text-xs ${
+                          isMine ? 'bg-indigo-600 text-white rounded-br-xs' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-xs'
+                        }`}>
+                          {!isMine && <div className="font-black text-[10px] text-indigo-600 mb-0.5">{m.senderName}</div>}
+                          <div>{m.text}</div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={chatBottomRef} />
+              </div>
+
+              {/* Message Input Box */}
+              <form onSubmit={handleSendMessage} className="flex gap-2 shrink-0">
+                <input
+                  type="text"
+                  value={inputText}
+                  onChange={e => setInputText(e.target.value)}
+                  placeholder="Message the event thread..."
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  type="submit"
+                  disabled={!inputText.trim() || isSending}
+                  className="px-3.5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 disabled:opacity-40 transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                >
+                  <Send size={13} />
+                  <span>Send</span>
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       </motion.div>
     </div>

@@ -45392,13 +45392,64 @@ function formatGooglePlaceLocation(place) {
   }
   return name2 || address || "";
 }
+function parseLocationDisplay(locationStr) {
+  if (!locationStr) {
+    return { venueName: "", address: "", hasVenue: false, fullLocation: "" };
+  }
+  const str = locationStr.trim();
+  if (!str) {
+    return { venueName: "", address: "", hasVenue: false, fullLocation: "" };
+  }
+  const parenMatch = str.match(/^([^(]+)\s*\(([^)]+)\)$/);
+  if (parenMatch) {
+    const venue = parenMatch[1].trim();
+    const addr = parenMatch[2].trim();
+    const isVenueStreetNum = /^\d+$/.test(venue);
+    if (!isVenueStreetNum && venue.length > 0) {
+      return { venueName: venue, address: addr, hasVenue: true, fullLocation: str };
+    }
+    return { venueName: "", address: addr || venue, hasVenue: false, fullLocation: str };
+  }
+  if (str.includes("•")) {
+    const parts = str.split("•");
+    const venue = parts[0].trim();
+    const addr = parts.slice(1).join("•").trim();
+    if (venue && !/^\d+$/.test(venue)) {
+      return { venueName: venue, address: addr, hasVenue: true, fullLocation: str };
+    }
+  }
+  const dashMatch = str.match(/^([^-–—]{2,})\s*[-–—]\s*(.{4,})$/);
+  if (dashMatch) {
+    const venue = dashMatch[1].trim();
+    const addr = dashMatch[2].trim();
+    if (venue && !/^\d+$/.test(venue)) {
+      return { venueName: venue, address: addr, hasVenue: true, fullLocation: str };
+    }
+  }
+  const isPureAddress = /^\d+\s+[A-Za-z0-9\s,.-]+(st|street|ave|avenue|blvd|boulevard|rd|road|dr|drive|lane|ln|way|ct|court|hwy|highway|cir|circle|pkwy|parkway)/i.test(str);
+  if (isPureAddress) {
+    return { venueName: "", address: str, hasVenue: false, fullLocation: str };
+  }
+  return { venueName: str, address: "", hasVenue: true, fullLocation: str };
+}
+function formatVenueAndAddress(venueName, address) {
+  const v2 = (venueName || "").trim();
+  const a = (address || "").trim();
+  if (v2 && a) {
+    if (a.toLowerCase().startsWith(v2.toLowerCase())) {
+      return a;
+    }
+    return `${v2} (${a})`;
+  }
+  return v2 || a || "";
+}
 function formatBacklogLocationForEvent(activityLocation, activityTitle) {
   const loc = (activityLocation || "").trim();
   const title = (activityTitle || "").trim();
   if (!loc) {
     return "";
   }
-  if (loc.includes("(") || loc.includes(" - ")) {
+  if (loc.includes("(") || loc.includes(" - ") || loc.includes("•")) {
     return loc;
   }
   const startsWithNumber = /^\d+\s+/.test(loc);
@@ -47004,13 +47055,15 @@ function CalendarView({ user, leagueId, sessions, onNavigateToChat }) {
   const [eventsTab, setEventsTab] = reactExports.useState("upcoming");
   const [eventViewMode, setEventViewMode] = reactExports.useState("compact");
   const [selectedEventForModal, setSelectedEventForModal] = reactExports.useState(null);
+  const [modalInitialEdit, setModalInitialEdit] = reactExports.useState(false);
   const defaultDT = getDefaultEventDateTime();
   const [eventName, setEventName] = reactExports.useState("");
   const [activityType, setActivityType] = reactExports.useState("Casual Hangout");
   const [hostId, setHostId] = reactExports.useState(user.uid);
   const [eventDate, setEventDate] = reactExports.useState(defaultDT.date);
   const [eventTime, setEventTime] = reactExports.useState(defaultDT.time);
-  const [location2, setLocation] = reactExports.useState("");
+  const [venueName, setVenueName] = reactExports.useState("");
+  const [locationAddress, setLocationAddress] = reactExports.useState("");
   const [description, setDescription] = reactExports.useState("");
   const [eventUrl, setEventUrl] = reactExports.useState("");
   reactExports.useEffect(() => {
@@ -47055,12 +47108,13 @@ function CalendarView({ user, leagueId, sessions, onNavigateToChat }) {
     const host = members.find((m) => m.userId === hostId);
     try {
       const combinedDate = (/* @__PURE__ */ new Date(`${eventDate}T${eventTime || "18:00"}`)).toISOString();
+      const combinedLocation = formatVenueAndAddress(venueName, locationAddress);
       const sessionData = {
         leagueId,
         date: combinedDate,
-        activityName: eventName,
+        activityName: eventName.trim(),
         activityType,
-        location: location2,
+        location: combinedLocation,
         description,
         hostId,
         hostName: (host == null ? void 0 : host.displayName) || "Host",
@@ -47079,7 +47133,8 @@ function CalendarView({ user, leagueId, sessions, onNavigateToChat }) {
       setHostId(user.uid);
       setEventDate(resetDT.date);
       setEventTime(resetDT.time);
-      setLocation("");
+      setVenueName("");
+      setLocationAddress("");
       setDescription("");
       setEventUrl("");
     } catch (err) {
@@ -47095,8 +47150,8 @@ function CalendarView({ user, leagueId, sessions, onNavigateToChat }) {
     const end = new Date(date.getTime() + 2 * 60 * 60 * 1e3).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${start}/${end}&details=${encodeURIComponent((activity == null ? void 0 : activity.description) || "")}&location=${encodeURIComponent(session.location || "")}`;
   };
-  const getMapsLink = (location22) => {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location22)}`;
+  const getMapsLink = (location2) => {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location2)}`;
   };
   const now2 = /* @__PURE__ */ new Date();
   const colorMap = {
@@ -47315,7 +47370,9 @@ function CalendarView({ user, leagueId, sessions, onNavigateToChat }) {
                     setEventName(activity.title);
                     setActivityType(activity.category || "Casual Hangout");
                     const formattedLoc = formatBacklogLocationForEvent(activity.location, activity.title);
-                    if (formattedLoc) setLocation(formattedLoc);
+                    const parsed = parseLocationDisplay(formattedLoc);
+                    setVenueName(parsed.venueName || (parsed.hasVenue ? parsed.fullLocation : ""));
+                    setLocationAddress(parsed.address || (!parsed.hasVenue ? parsed.fullLocation : ""));
                     if (activity.description) setDescription(activity.description);
                   }
                 },
@@ -47409,40 +47466,60 @@ function CalendarView({ user, leagueId, sessions, onNavigateToChat }) {
             ] }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-[10px] font-black uppercase text-slate-400 tracking-widest pl-2", children: "Location/Address" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "text-[10px] font-black uppercase text-slate-400 tracking-widest pl-2 flex items-center justify-between", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Place / Venue Name" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-indigo-600 font-bold lowercase", children: "shown prominently" })
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "input",
+                  {
+                    value: venueName,
+                    onChange: (e) => setVenueName(e.target.value),
+                    placeholder: "e.g. HopCat, Topgolf, Comerica Park",
+                    className: "w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-[10px] font-black uppercase text-slate-400 tracking-widest pl-2", children: "Address / Maps Search" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   Autocomplete,
                   {
                     apiKey: "AIzaSyAHdQ7OSkwgYy6wM4UX4oIu9kDg1w_JhQE",
                     onPlaceSelected: (place) => {
-                      setLocation(formatGooglePlaceLocation(place));
+                      const name2 = typeof place.name === "string" ? place.name.trim() : "";
+                      const addr = typeof place.formatted_address === "string" ? place.formatted_address.trim() : "";
+                      if (name2 && !/^\d+$/.test(name2)) {
+                        setVenueName(name2);
+                      }
+                      setLocationAddress(addr || name2);
                     },
-                    value: location2,
-                    onChange: (e) => setLocation(e.target.value),
+                    value: locationAddress,
+                    onChange: (e) => setLocationAddress(e.target.value),
                     options: {
                       types: ["geocode", "establishment"]
                     },
-                    placeholder: "e.g. Pine Valley Golf Club",
-                    className: "w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"
-                  }
-                )
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "text-[10px] font-black uppercase text-slate-400 tracking-widest pl-2 flex items-center gap-1", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { size: 12, className: "text-indigo-500" }),
-                  " Event URL / Link (Optional)"
-                ] }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "input",
-                  {
-                    type: "url",
-                    value: eventUrl,
-                    onChange: (e) => setEventUrl(e.target.value),
-                    placeholder: "https://... (tickets, venue site, reservation)",
+                    placeholder: "e.g. 4200 Woodward Ave or search establishment",
                     className: "w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                   }
                 )
               ] })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "text-[10px] font-black uppercase text-slate-400 tracking-widest pl-2 flex items-center gap-1", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { size: 12, className: "text-indigo-500" }),
+                " Event URL / Link (Optional)"
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "input",
+                {
+                  type: "url",
+                  value: eventUrl,
+                  onChange: (e) => setEventUrl(e.target.value),
+                  placeholder: "https://... (tickets, venue site, reservation)",
+                  className: "w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                }
+              )
             ] }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-[10px] font-black uppercase text-slate-400 tracking-widest pl-2", children: "Details / Why we should do it" }),
@@ -47592,7 +47669,14 @@ function CalendarView({ user, leagueId, sessions, onNavigateToChat }) {
             session,
             user,
             members,
-            onSelectEvent: () => setSelectedEventForModal(session)
+            onSelectEvent: () => {
+              setSelectedEventForModal(session);
+              setModalInitialEdit(false);
+            },
+            onEditEvent: () => {
+              setSelectedEventForModal(session);
+              setModalInitialEdit(true);
+            }
           },
           session.id
         );
@@ -47607,7 +47691,14 @@ function CalendarView({ user, leagueId, sessions, onNavigateToChat }) {
           members,
           currentUser: user,
           onChatClick: () => onNavigateToChat(session.id),
-          onSelectEvent: () => setSelectedEventForModal(session)
+          onSelectEvent: () => {
+            setSelectedEventForModal(session);
+            setModalInitialEdit(false);
+          },
+          onEditEvent: () => {
+            setSelectedEventForModal(session);
+            setModalInitialEdit(true);
+          }
         },
         session.id
       );
@@ -47615,10 +47706,14 @@ function CalendarView({ user, leagueId, sessions, onNavigateToChat }) {
     /* @__PURE__ */ jsxRuntimeExports.jsx(AnimatePresence, { children: selectedEventForModal && /* @__PURE__ */ jsxRuntimeExports.jsx(
       EventDetailsAndChatModal,
       {
-        session: selectedEventForModal,
+        session: sessions.find((s) => s.id === selectedEventForModal.id) || selectedEventForModal,
         user,
         members,
-        onClose: () => setSelectedEventForModal(null),
+        initialEditMode: modalInitialEdit,
+        onClose: () => {
+          setSelectedEventForModal(null);
+          setModalInitialEdit(false);
+        },
         onNavigateToChat,
         getMapsLink
       }
@@ -47629,12 +47724,14 @@ function CompactSessionRow({
   session,
   user,
   members,
-  onSelectEvent
+  onSelectEvent,
+  onEditEvent
 }) {
   var _a;
   const date = new Date(session.date);
   const isGoing = session.attendees.includes(user.uid);
   const isDeclined = (_a = session.declined) == null ? void 0 : _a.includes(user.uid);
+  const locInfo = parseLocationDisplay(session.location);
   const handleRSVP = async (going, e) => {
     e.stopPropagation();
     if (session.status === "cancelled") return;
@@ -47669,9 +47766,14 @@ function CompactSessionRow({
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 text-[10px] text-slate-400 font-medium truncate mt-0.5", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-slate-600 font-bold", children: date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) }),
-            session.location && /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "truncate max-w-[120px] sm:max-w-[200px]", children: [
+            locInfo.fullLocation && /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "truncate max-w-[130px] sm:max-w-[200px] text-slate-700", children: [
               "• ",
-              session.location
+              /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { className: "font-bold text-slate-900", children: locInfo.venueName || locInfo.address }),
+              locInfo.venueName && locInfo.address && /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-slate-400 font-normal ml-1 hidden md:inline", children: [
+                "(",
+                locInfo.address,
+                ")"
+              ] })
             ] }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
               "• ",
@@ -47684,7 +47786,7 @@ function CompactSessionRow({
             ] })
           ] })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5 shrink-0", onClick: (e) => e.stopPropagation(), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1 shrink-0", onClick: (e) => e.stopPropagation(), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "button",
             {
@@ -47698,8 +47800,20 @@ function CompactSessionRow({
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "button",
             {
+              onClick: (e) => {
+                e.stopPropagation();
+                onEditEvent();
+              },
+              className: "p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer",
+              title: "Edit Event",
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(Pencil, { size: 13 })
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
               onClick: onSelectEvent,
-              className: "p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors",
+              className: "p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer",
               title: "View Details & Chat",
               children: /* @__PURE__ */ jsxRuntimeExports.jsx(ChevronRight, { size: 15 })
             }
@@ -47709,7 +47823,7 @@ function CompactSessionRow({
     }
   );
 }
-function SessionCard({ session, activities, getCalendarLink, getMapsLink, members, currentUser, onChatClick, onSelectEvent }) {
+function SessionCard({ session, activities, getCalendarLink, getMapsLink, members, currentUser, onChatClick, onSelectEvent, onEditEvent }) {
   var _a;
   const activity = activities.find((a) => a.id === session.activityId);
   const date = new Date(session.date);
@@ -47766,7 +47880,7 @@ function SessionCard({ session, activities, getCalendarLink, getMapsLink, member
   };
   const isGoing = session.attendees.includes(currentUser.uid);
   const isDeclined = (_a = session.declined) == null ? void 0 : _a.includes(currentUser.uid);
-  const isHost = session.hostId === currentUser.uid;
+  session.hostId === currentUser.uid;
   const getMemberData = (uid) => members.find((m) => m.userId === uid);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     motion.div,
@@ -47949,14 +48063,14 @@ function SessionCard({ session, activities, getCalendarLink, getMapsLink, member
                 /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `inline-block px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${session.status === "cancelled" ? "bg-rose-100 text-rose-700" : isGoing ? "bg-emerald-100 text-emerald-700" : isDeclined ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-500"}`, children: session.status === "cancelled" ? "Cancelled" : isGoing ? "Going" : isDeclined ? "Not Going" : "Pending" })
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
-                isHost && session.status !== "cancelled" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                session.status !== "cancelled" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "button",
                     {
                       onClick: () => setIsEditing(true),
-                      className: "p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer",
+                      className: "p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer",
                       title: "Edit Event",
-                      children: /* @__PURE__ */ jsxRuntimeExports.jsx(Pencil, { size: 20 })
+                      children: /* @__PURE__ */ jsxRuntimeExports.jsx(Pencil, { size: 18 })
                     }
                   ),
                   /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative", children: [
@@ -47964,9 +48078,9 @@ function SessionCard({ session, activities, getCalendarLink, getMapsLink, member
                       "button",
                       {
                         onClick: () => setShowCancelConfirm(!showCancelConfirm),
-                        className: `p-2 rounded-lg transition-all cursor-pointer ${showCancelConfirm ? "bg-rose-100 text-rose-600" : "text-slate-300 hover:text-rose-500 hover:bg-rose-50"}`,
+                        className: `p-2 rounded-lg transition-all cursor-pointer ${showCancelConfirm ? "bg-rose-100 text-rose-600" : "text-slate-400 hover:text-rose-500 hover:bg-rose-50"}`,
                         title: "Cancel Event",
-                        children: /* @__PURE__ */ jsxRuntimeExports.jsx(CircleX, { size: 20 })
+                        children: /* @__PURE__ */ jsxRuntimeExports.jsx(CircleX, { size: 18 })
                       }
                     ),
                     /* @__PURE__ */ jsxRuntimeExports.jsx(AnimatePresence, { children: showCancelConfirm && /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -48009,7 +48123,7 @@ function SessionCard({ session, activities, getCalendarLink, getMapsLink, member
                     rel: "noopener noreferrer",
                     className: "p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all",
                     title: "Add to Google Calendar",
-                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(CalendarPlus, { size: 20 })
+                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(CalendarPlus, { size: 18 })
                   }
                 )
               ] })
@@ -48033,19 +48147,25 @@ function SessionCard({ session, activities, getCalendarLink, getMapsLink, member
                 /* @__PURE__ */ jsxRuntimeExports.jsx(Clock, { size: 15, className: "text-indigo-500" }),
                 date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
               ] }),
-              session.location && /* @__PURE__ */ jsxRuntimeExports.jsxs(
-                "a",
-                {
-                  href: getMapsLink(session.location),
-                  target: "_blank",
-                  rel: "noopener noreferrer",
-                  className: "flex items-center gap-1 hover:text-indigo-600 transition-colors",
-                  children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx(MapPin, { size: 15, className: "text-indigo-500" }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "truncate max-w-[200px]", children: session.location })
-                  ]
-                }
-              ),
+              session.location && (() => {
+                const loc = parseLocationDisplay(session.location);
+                return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                  "a",
+                  {
+                    href: getMapsLink(session.location),
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                    className: "flex items-center gap-1.5 hover:text-indigo-600 transition-colors bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-100",
+                    children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx(MapPin, { size: 14, className: "text-indigo-500 shrink-0" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col text-left", children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-bold text-slate-900 text-xs leading-tight", children: loc.venueName || loc.address }),
+                        loc.venueName && loc.address && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] text-slate-500 font-normal leading-tight truncate max-w-[200px]", children: loc.address })
+                      ] })
+                    ]
+                  }
+                );
+              })(),
               session.url && /* @__PURE__ */ jsxRuntimeExports.jsxs(
                 "a",
                 {
@@ -48138,11 +48258,30 @@ function EventDetailsAndChatModal({
   session,
   user,
   members,
+  initialEditMode = false,
   onClose,
   onNavigateToChat,
   getMapsLink
 }) {
   var _a;
+  const [activeTab, setActiveTab] = reactExports.useState("details");
+  const [isEditing, setIsEditing] = reactExports.useState(initialEditMode);
+  const [isSavingEdit, setIsSavingEdit] = reactExports.useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = reactExports.useState(false);
+  const [isUpdatingRSVP, setIsUpdatingRSVP] = reactExports.useState(false);
+  const locInfo = parseLocationDisplay(session.location);
+  const sessionDateObj = new Date(session.date);
+  const initialDateStr = !isNaN(sessionDateObj.getTime()) ? sessionDateObj.toISOString().slice(0, 10) : "";
+  const initialTimeStr = !isNaN(sessionDateObj.getTime()) ? sessionDateObj.toTimeString().slice(0, 5) : "18:00";
+  const [editName, setEditName] = reactExports.useState(session.activityName);
+  const [editType, setEditType] = reactExports.useState(session.activityType || "Casual Hangout");
+  const [editHostId, setEditHostId] = reactExports.useState(session.hostId || user.uid);
+  const [editDatePart, setEditDatePart] = reactExports.useState(initialDateStr);
+  const [editTimePart, setEditTimePart] = reactExports.useState(initialTimeStr);
+  const [editVenueName, setEditVenueName] = reactExports.useState(locInfo.venueName);
+  const [editAddress, setEditAddress] = reactExports.useState(locInfo.address || (!locInfo.hasVenue ? locInfo.fullLocation : ""));
+  const [editDescription, setEditDescription] = reactExports.useState(session.description || "");
+  const [editUrl, setEditUrl] = reactExports.useState(session.url || "");
   const [messages, setMessages] = reactExports.useState([]);
   const [inputText, setInputText] = reactExports.useState("");
   const [isSending, setIsSending] = reactExports.useState(false);
@@ -48164,8 +48303,10 @@ function EventDetailsAndChatModal({
   }, [session.id]);
   reactExports.useEffect(() => {
     var _a2;
-    (_a2 = chatBottomRef.current) == null ? void 0 : _a2.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (activeTab === "chat") {
+      (_a2 = chatBottomRef.current) == null ? void 0 : _a2.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, activeTab]);
   const handleSendMessage = async (e) => {
     e.preventDefault();
     const trimmed = inputText.trim();
@@ -48190,164 +48331,529 @@ function EventDetailsAndChatModal({
   const isGoing = session.attendees.includes(user.uid);
   const isDeclined = (_a = session.declined) == null ? void 0 : _a.includes(user.uid);
   const handleRSVP = async (going) => {
-    const docRef = doc(db, "sessions", session.id);
-    if (going) {
+    if (session.status === "cancelled" || isUpdatingRSVP) return;
+    setIsUpdatingRSVP(true);
+    try {
+      const docRef = doc(db, "sessions", session.id);
+      if (going) {
+        await updateDoc(docRef, {
+          attendees: arrayUnion(user.uid),
+          declined: arrayRemove(user.uid)
+        });
+      } else {
+        await updateDoc(docRef, {
+          attendees: arrayRemove(user.uid),
+          declined: arrayUnion(user.uid)
+        });
+      }
+    } catch (err) {
+      console.error("RSVP update error:", err);
+    } finally {
+      setIsUpdatingRSVP(false);
+    }
+  };
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editName.trim() || !editDatePart || isSavingEdit) return;
+    setIsSavingEdit(true);
+    try {
+      const hostMember = members.find((m) => m.userId === editHostId);
+      const combinedDate = (/* @__PURE__ */ new Date(`${editDatePart}T${editTimePart || "18:00"}`)).toISOString();
+      const combinedLocation = formatVenueAndAddress(editVenueName, editAddress);
+      const docRef = doc(db, "sessions", session.id);
       await updateDoc(docRef, {
-        attendees: arrayUnion(user.uid),
-        declined: arrayRemove(user.uid)
+        activityName: editName.trim(),
+        activityType: editType,
+        hostId: editHostId,
+        hostName: (hostMember == null ? void 0 : hostMember.displayName) || session.hostName || "Host",
+        date: combinedDate,
+        location: combinedLocation,
+        url: editUrl.trim() || null,
+        description: editDescription.trim(),
+        updatedAt: serverTimestamp()
       });
-    } else {
+      setIsEditing(false);
+    } catch (err) {
+      console.error("Error saving event changes:", err);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+  const handleCancelSession = async () => {
+    try {
+      const docRef = doc(db, "sessions", session.id);
       await updateDoc(docRef, {
-        attendees: arrayRemove(user.uid),
-        declined: arrayUnion(user.uid)
+        status: "cancelled",
+        updatedAt: serverTimestamp()
       });
+      setShowCancelConfirm(false);
+      setIsEditing(false);
+    } catch (err) {
+      console.error("Error cancelling session:", err);
     }
   };
   const date = new Date(session.date);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto", children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+  const formattedCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(session.activityName)}&dates=${date.toISOString().replace(/[-:]/g, "").split(".")[0]}Z/${new Date(date.getTime() + 2 * 36e5).toISOString().replace(/[-:]/g, "").split(".")[0]}Z&details=${encodeURIComponent(session.description || "")}&location=${encodeURIComponent(session.location || "")}`;
+  const latestMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+  const getMemberData = (uid) => members.find((m) => m.userId === uid);
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/60 backdrop-blur-xs", children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
     motion.div,
     {
-      initial: { opacity: 0, scale: 0.95, y: 15 },
+      initial: { opacity: 0, scale: 0.95, y: 10 },
       animate: { opacity: 1, scale: 1, y: 0 },
-      exit: { opacity: 0, scale: 0.95, y: 15 },
-      className: "bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]",
+      exit: { opacity: 0, scale: 0.95, y: 10 },
+      className: "bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-xl overflow-hidden flex flex-col h-[88vh] max-h-[640px]",
       children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3 min-w-0", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-md", children: "📅" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-3.5 sm:p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2.5 min-w-0", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm", children: "📅" }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "min-w-0", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] font-black uppercase text-indigo-600 tracking-widest block truncate", children: "Event Details & Chat Thread" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-lg sm:text-xl font-black text-slate-900 leading-tight truncate", children: session.activityName })
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[9px] font-black uppercase text-indigo-600 tracking-wider", children: session.activityType || "Meetup" }),
+                session.status === "cancelled" && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[8px] font-black uppercase bg-rose-100 text-rose-700 px-1.5 py-0.2 rounded-md", children: "Cancelled" })
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-base sm:text-lg font-black text-slate-900 leading-tight truncate", children: session.activityName })
             ] })
           ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1 shrink-0", children: [
+            !isEditing ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              "button",
+              {
+                onClick: () => setIsEditing(true),
+                className: "flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:text-indigo-600 hover:bg-white rounded-xl transition-all border border-slate-200 shadow-2xs cursor-pointer",
+                title: "Edit event details",
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(Pencil, { size: 13 }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Edit" })
+                ]
+              }
+            ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "button",
+              {
+                onClick: () => setIsEditing(false),
+                className: "px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-xl transition-all cursor-pointer",
+                children: "Back"
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "button",
+              {
+                onClick: onClose,
+                className: "p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer",
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx(X, { size: 18 })
+              }
+            )
+          ] })
+        ] }),
+        !isEditing && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-slate-50/90 border-b border-slate-200/80 px-3.5 sm:px-4 py-2 flex items-center justify-between gap-2 shrink-0", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 min-w-0", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] font-black uppercase text-slate-400 tracking-wider shrink-0", children: "Your RSVP:" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider truncate ${isGoing ? "bg-emerald-100 text-emerald-800" : isDeclined ? "bg-rose-100 text-rose-700" : "bg-slate-200 text-slate-600"}`, children: isGoing ? "✓ You're In" : isDeclined ? "✕ Can't Make It" : "⏳ Pending" })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5 shrink-0", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              "button",
+              {
+                disabled: session.status === "cancelled" || isUpdatingRSVP,
+                onClick: () => handleRSVP(true),
+                className: `px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 ${isGoing ? "bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-300" : "bg-white border border-slate-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"} disabled:opacity-40 disabled:cursor-not-allowed`,
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "✓" }),
+                  " I'm In"
+                ]
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              "button",
+              {
+                disabled: session.status === "cancelled" || isUpdatingRSVP,
+                onClick: () => handleRSVP(false),
+                className: `px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 ${isDeclined ? "bg-rose-600 text-white shadow-xs ring-2 ring-rose-300" : "bg-white border border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-700"} disabled:opacity-40 disabled:cursor-not-allowed`,
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "✕" }),
+                  " Can't Make It"
+                ]
+              }
+            )
+          ] })
+        ] }),
+        !isEditing && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex border-b border-slate-200 bg-white shrink-0 px-2", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "button",
             {
-              onClick: onClose,
-              className: "p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer shrink-0 ml-2",
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx(X, { size: 20 })
+              onClick: () => setActiveTab("details"),
+              className: `flex-1 py-2 text-xs font-black uppercase tracking-wider transition-all border-b-2 flex items-center justify-center gap-1.5 cursor-pointer ${activeTab === "details" ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-400 hover:text-slate-700"}`,
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(Calendar, { size: 14 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Event Details" })
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "button",
+            {
+              onClick: () => setActiveTab("chat"),
+              className: `flex-1 py-2 text-xs font-black uppercase tracking-wider transition-all border-b-2 flex items-center justify-center gap-1.5 cursor-pointer ${activeTab === "chat" ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-400 hover:text-slate-700"}`,
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCircle, { size: 14 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+                  "Discussion (",
+                  messages.length,
+                  ")"
+                ] })
+              ]
             }
           )
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 custom-scrollbar", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-slate-50 rounded-2xl border border-slate-200/80 p-4 sm:p-5 space-y-4", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center gap-2", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-black uppercase tracking-wider", children: session.activityType || "Meetup" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "px-3 py-1 bg-slate-200 text-slate-700 rounded-full text-xs font-black uppercase tracking-wider", children: [
-                "Host: ",
-                session.hostName
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${session.status === "cancelled" ? "bg-rose-100 text-rose-700" : isGoing ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`, children: session.status === "cancelled" ? "Cancelled" : isGoing ? "You are In!" : isDeclined ? "Declined" : "RSVP Pending" })
-            ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-slate-700 font-medium", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(Calendar, { size: 16, className: "text-indigo-600 shrink-0" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }) })
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(Clock, { size: 16, className: "text-indigo-600 shrink-0" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) })
-              ] }),
-              session.location && /* @__PURE__ */ jsxRuntimeExports.jsxs(
-                "a",
-                {
-                  href: getMapsLink(session.location),
-                  target: "_blank",
-                  rel: "noopener noreferrer",
-                  className: "flex items-center gap-2 text-indigo-600 hover:underline sm:col-span-2",
-                  children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx(MapPin, { size: 16, className: "shrink-0" }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "truncate", children: session.location })
-                  ]
-                }
-              ),
-              session.url && /* @__PURE__ */ jsxRuntimeExports.jsxs(
-                "a",
-                {
-                  href: session.url,
-                  target: "_blank",
-                  rel: "noopener noreferrer",
-                  className: "flex items-center gap-2 text-indigo-600 hover:underline sm:col-span-2 font-bold",
-                  children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx(ExternalLink, { size: 16, className: "shrink-0" }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "truncate", children: session.url })
-                  ]
-                }
-              )
-            ] }),
-            session.description && /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-sm text-slate-600 bg-white p-3.5 rounded-xl border border-slate-200/60 leading-relaxed italic", children: [
-              '"',
-              session.description,
-              '"'
-            ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/60", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs font-black uppercase text-slate-400", children: "RSVP:" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "button",
-                  {
-                    onClick: () => handleRSVP(true),
-                    className: `px-4 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${isGoing ? "bg-emerald-600 text-white shadow-sm" : "bg-white border border-slate-200 text-slate-600 hover:bg-emerald-50"}`,
-                    children: "I'm In"
-                  }
-                ),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "button",
-                  {
-                    onClick: () => handleRSVP(false),
-                    className: `px-4 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${isDeclined ? "bg-rose-600 text-white shadow-sm" : "bg-white border border-slate-200 text-slate-600 hover:bg-rose-50"}`,
-                    children: "Can't Make It"
-                  }
-                )
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-xs font-bold text-slate-500", children: [
-                session.attendees.length,
-                " attending"
-              ] })
-            ] })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex-1 min-h-0 overflow-hidden flex flex-col", children: isEditing ? /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { onSubmit: handleSaveEdit, className: "flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 custom-scrollbar", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between pb-2 border-b border-slate-100", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs font-black uppercase tracking-wider text-slate-500", children: "Edit Event Information" }),
+            session.status !== "cancelled" && /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "button",
+              {
+                type: "button",
+                onClick: () => setShowCancelConfirm(!showCancelConfirm),
+                className: "text-[10px] font-bold text-rose-600 hover:text-rose-800 uppercase tracking-wider cursor-pointer",
+                children: "Cancel Event"
+              }
+            )
           ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-3", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("h4", { className: "text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCircle, { size: 14, className: "text-indigo-600" }),
-                "Event Discussion (",
-                messages.length,
-                ")"
-              ] }),
+          showCancelConfirm && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-2", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs font-bold text-rose-800", children: "Are you sure you want to cancel this event for the group?" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-2", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
                 {
-                  onClick: () => {
-                    onNavigateToChat(session.id);
-                    onClose();
-                  },
-                  className: "text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer",
-                  children: "Open in Full Chat →"
+                  type: "button",
+                  onClick: handleCancelSession,
+                  className: "px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-rose-700",
+                  children: "Yes, Cancel Event"
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "button",
+                {
+                  type: "button",
+                  onClick: () => setShowCancelConfirm(false),
+                  className: "px-3 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-bold uppercase tracking-wider",
+                  children: "Back"
+                }
+              )
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-3", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1", children: "Event Name" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "input",
+                {
+                  value: editName,
+                  onChange: (e) => setEditName(e.target.value),
+                  className: "w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 }
               )
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "h-56 overflow-y-auto bg-slate-50 rounded-2xl border border-slate-200 p-3 space-y-2.5 custom-scrollbar", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1", children: "Activity Type" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                "select",
+                {
+                  value: editType,
+                  onChange: (e) => setEditType(e.target.value),
+                  className: "w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500",
+                  children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "Active Sports & Exercise", children: "Active Sports & Exercise" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "Games / Hobbies", children: "Games / Hobbies" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "Event (Game, Concert, etc.)", children: "Event (Game, Concert, etc.)" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "Casual Hangout", children: "Casual Hangout" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "Helping Out", children: "Helping Out" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "Food & Beverage", children: "Food & Beverage" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "Trip / Travel", children: "Trip / Travel" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "Other", children: "Other" })
+                  ]
+                }
+              )
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-3 gap-3", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1", children: "Host" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "select",
+                {
+                  value: editHostId,
+                  onChange: (e) => setEditHostId(e.target.value),
+                  className: "w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500",
+                  children: members.map((m) => /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: m.userId, children: m.displayName }, m.userId))
+                }
+              )
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1", children: "Date" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "input",
+                {
+                  type: "date",
+                  value: editDatePart,
+                  onChange: (e) => setEditDatePart(e.target.value),
+                  className: "w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                }
+              )
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1", children: "Time" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "input",
+                {
+                  type: "time",
+                  value: editTimePart,
+                  onChange: (e) => setEditTimePart(e.target.value),
+                  className: "w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                }
+              )
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-3", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1 flex items-center justify-between", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Place / Venue Name" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-indigo-600 font-bold lowercase", children: "headline" })
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "input",
+                {
+                  value: editVenueName,
+                  onChange: (e) => setEditVenueName(e.target.value),
+                  placeholder: "e.g. HopCat, Topgolf, Ford Field",
+                  className: "w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                }
+              )
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1", children: "Address / Maps" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                Autocomplete,
+                {
+                  apiKey: "AIzaSyAHdQ7OSkwgYy6wM4UX4oIu9kDg1w_JhQE",
+                  onPlaceSelected: (place) => {
+                    const name2 = typeof place.name === "string" ? place.name.trim() : "";
+                    const addr = typeof place.formatted_address === "string" ? place.formatted_address.trim() : "";
+                    if (name2 && !/^\d+$/.test(name2)) {
+                      setEditVenueName(name2);
+                    }
+                    setEditAddress(addr || name2);
+                  },
+                  value: editAddress,
+                  onChange: (e) => setEditAddress(e.target.value),
+                  options: {
+                    types: ["geocode", "establishment"]
+                  },
+                  placeholder: "Search address or venue",
+                  className: "w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                }
+              )
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1 flex items-center gap-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { size: 12, className: "text-indigo-500" }),
+              " Event Link / Website (Optional)"
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "input",
+              {
+                type: "url",
+                value: editUrl,
+                onChange: (e) => setEditUrl(e.target.value),
+                placeholder: "https://... (tickets, venue info)",
+                className: "w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1", children: "Details & Notes" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "textarea",
+              {
+                value: editDescription,
+                onChange: (e) => setEditDescription(e.target.value),
+                placeholder: "Event details...",
+                className: "w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[70px]"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-2.5 pt-2", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "button",
+              {
+                type: "button",
+                onClick: () => setIsEditing(false),
+                className: "flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer",
+                children: "Cancel"
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              "button",
+              {
+                type: "submit",
+                disabled: isSavingEdit,
+                className: "flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm cursor-pointer",
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(Save, { size: 13 }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: isSavingEdit ? "Saving..." : "Save Changes" })
+                ]
+              }
+            )
+          ] })
+        ] }) : activeTab === "details" ? (
+          /* 2. NON-SCROLLING DETAILS VIEW (Fits within ~350px viewport height!) */
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-3.5 sm:p-5 space-y-3.5 flex flex-col justify-between h-full overflow-y-auto custom-scrollbar", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-3", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-3 bg-slate-50 p-2.5 sm:p-3 rounded-2xl border border-slate-200/70", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 text-xs sm:text-sm text-slate-800 font-bold min-w-0", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(Calendar, { size: 15, className: "text-indigo-600 shrink-0" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "truncate", children: date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-slate-300", children: "•" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(Clock, { size: 15, className: "text-indigo-600 shrink-0" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) })
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                  "a",
+                  {
+                    href: formattedCalendarUrl,
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                    className: "flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 rounded-lg border border-slate-200 text-[10px] font-bold uppercase tracking-tight shrink-0 transition-colors",
+                    title: "Add to Google Calendar",
+                    children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx(CalendarPlus, { size: 12 }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Calendar" })
+                    ]
+                  }
+                )
+              ] }),
+              session.location && (() => {
+                return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start gap-2.5 bg-indigo-50/50 p-2.5 sm:p-3 rounded-2xl border border-indigo-100/80", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs", children: /* @__PURE__ */ jsxRuntimeExports.jsx(MapPin, { size: 15 }) }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "min-w-0 flex-1", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-2", children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[9px] font-black uppercase text-indigo-700 tracking-wider", children: "Venue / Place" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        "a",
+                        {
+                          href: getMapsLink(session.location),
+                          target: "_blank",
+                          rel: "noopener noreferrer",
+                          className: "text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5 shrink-0",
+                          children: "Maps ↗"
+                        }
+                      )
+                    ] }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm font-black text-slate-900 leading-tight mt-0.5", children: locInfo.venueName || locInfo.address }),
+                    locInfo.venueName && locInfo.address && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[11px] text-slate-500 font-medium leading-tight mt-0.5 truncate", children: locInfo.address })
+                  ] })
+                ] });
+              })(),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center gap-2 text-xs", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1 px-2.5 py-1 bg-slate-100 rounded-lg text-slate-700 font-bold", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(User2, { size: 12, className: "text-indigo-600" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+                    "Host: ",
+                    session.hostName
+                  ] })
+                ] }),
+                session.url && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                  "a",
+                  {
+                    href: session.url,
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                    className: "flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg border border-indigo-200 transition-colors truncate max-w-[220px]",
+                    children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx(ExternalLink, { size: 12, className: "shrink-0" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "truncate", children: "Event Website / Tickets" })
+                    ]
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1.5", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-400", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+                    "Who's In (",
+                    session.attendees.length,
+                    ")"
+                  ] }),
+                  session.declined && session.declined.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+                    session.declined.length,
+                    " Declined"
+                  ] })
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-wrap gap-1.5 max-h-20 overflow-y-auto", children: session.attendees.map((uid) => {
+                  const m = getMemberData(uid);
+                  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      "img",
+                      {
+                        src: (m == null ? void 0 : m.photoURL) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`,
+                        className: "w-4 h-4 rounded-full object-cover",
+                        alt: ""
+                      }
+                    ),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] font-bold text-emerald-800 truncate max-w-[90px]", children: (m == null ? void 0 : m.displayName) || (uid === user.uid ? "You" : "Member") })
+                  ] }, uid);
+                }) })
+              ] }),
+              session.description && /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 leading-relaxed italic line-clamp-2", children: [
+                '"',
+                session.description,
+                '"'
+              ] })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              "div",
+              {
+                onClick: () => setActiveTab("chat"),
+                className: "bg-indigo-50/70 hover:bg-indigo-100/70 border border-indigo-200/70 rounded-2xl p-2.5 flex items-center justify-between cursor-pointer transition-colors shrink-0",
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 min-w-0", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCircle, { size: 15, className: "text-indigo-600 shrink-0" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs text-slate-700 truncate font-medium", children: latestMessage ? `${latestMessage.senderName}: "${latestMessage.text}"` : "No chat messages yet. Tap to start thread!" })
+                  ] }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[10px] font-black uppercase text-indigo-600 tracking-wider shrink-0 ml-2", children: [
+                    "Chat (",
+                    messages.length,
+                    ") →"
+                  ] })
+                ]
+              }
+            )
+          ] })
+        ) : (
+          /* 3. LIVE CHAT TAB */
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex-1 flex flex-col min-h-0 p-3 sm:p-4 space-y-2.5", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex-1 overflow-y-auto bg-slate-50 rounded-2xl border border-slate-200 p-3 space-y-2.5 custom-scrollbar min-h-0", children: [
               messages.length === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "h-full flex flex-col items-center justify-center text-center text-slate-400 p-4", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCircle, { size: 24, className: "text-slate-300 mb-1" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs font-bold", children: "No messages in this event chat yet." }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-[11px] text-slate-400", children: "Start the conversation about timing, rides, or prep!" })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-[11px] text-slate-400", children: "Coordinate rides, timing, tickets, or prep with the guys!" })
               ] }) : messages.map((m) => {
                 const isMine = m.senderId === user.uid;
-                return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `flex flex-col ${isMine ? "items-end" : "items-start"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `max-w-[85%] px-3.5 py-2 rounded-2xl text-xs ${isMine ? "bg-indigo-600 text-white rounded-br-xs" : "bg-white text-slate-800 border border-slate-200 rounded-bl-xs"}`, children: [
+                return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `flex flex-col ${isMine ? "items-end" : "items-start"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `max-w-[85%] px-3 py-1.5 rounded-2xl text-xs ${isMine ? "bg-indigo-600 text-white rounded-br-xs" : "bg-white text-slate-800 border border-slate-200 rounded-bl-xs"}`, children: [
                   !isMine && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-black text-[10px] text-indigo-600 mb-0.5", children: m.senderName }),
                   /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: m.text })
                 ] }) }, m.id);
               }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: chatBottomRef })
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { onSubmit: handleSendMessage, className: "flex gap-2", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { onSubmit: handleSendMessage, className: "flex gap-2 shrink-0", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "input",
                 {
                   type: "text",
                   value: inputText,
                   onChange: (e) => setInputText(e.target.value),
-                  placeholder: "Ask a question or post an update for this event...",
-                  className: "flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder: "Message the event thread...",
+                  className: "flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 }
               ),
               /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -48355,16 +48861,16 @@ function EventDetailsAndChatModal({
                 {
                   type: "submit",
                   disabled: !inputText.trim() || isSending,
-                  className: "px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 disabled:opacity-40 transition-all cursor-pointer flex items-center gap-1",
+                  className: "px-3.5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 disabled:opacity-40 transition-all cursor-pointer flex items-center gap-1 shrink-0",
                   children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx(Send, { size: 14 }),
-                    " Send"
+                    /* @__PURE__ */ jsxRuntimeExports.jsx(Send, { size: 13 }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Send" })
                   ]
                 }
               )
             ] })
           ] })
-        ] })
+        ) })
       ]
     }
   ) });
@@ -50896,10 +51402,14 @@ function Members({ user, leagueId }) {
   const [league, setLeague] = reactExports.useState(null);
   const [copiedLink, setCopiedLink] = reactExports.useState(false);
   const [copiedCode, setCopiedCode] = reactExports.useState(false);
+  const [activeMiniSection, setActiveMiniSection] = reactExports.useState("all");
   const [sessions, setSessions] = reactExports.useState([]);
   const [activities, setActivities] = reactExports.useState([]);
   const [messages, setMessages] = reactExports.useState([]);
   const [posts, setPosts] = reactExports.useState([]);
+  const [isEditingAbout, setIsEditingAbout] = reactExports.useState(false);
+  const [leagueDescInput, setLeagueDescInput] = reactExports.useState("");
+  const [isSavingDesc, setIsSavingDesc] = reactExports.useState(false);
   const [isManagingRoster, setIsManagingRoster] = reactExports.useState(false);
   const [selectedUids, setSelectedUids] = reactExports.useState([]);
   const [isSavingRoster, setIsSavingRoster] = reactExports.useState(false);
@@ -50918,6 +51428,7 @@ function Members({ user, leagueId }) {
         if (!isManagingRoster) {
           setSelectedUids(lData.memberIds || []);
         }
+        setLeagueDescInput(lData.description || "");
       }
     }, (err) => handleFirestoreError(err, OperationType.GET, `leagues/${leagueId}`));
     const qS = query(collection(db, "sessions"), where("leagueId", "==", leagueId));
@@ -50973,6 +51484,21 @@ function Members({ user, leagueId }) {
       setTimeout(() => setCopiedCode(false), 2500);
     }
   };
+  const handleSaveLeagueDescription = async (e) => {
+    e.preventDefault();
+    if (!league || isSavingDesc) return;
+    setIsSavingDesc(true);
+    try {
+      await updateDoc(doc(db, "leagues", league.id), {
+        description: leagueDescInput.trim()
+      });
+      setIsEditingAbout(false);
+    } catch (err) {
+      console.error("Error saving league description:", err);
+    } finally {
+      setIsSavingDesc(false);
+    }
+  };
   const toggleUserInRoster = (uid) => {
     setSelectedUids(
       (prev) => prev.includes(uid) ? prev.filter((id2) => id2 !== uid) : [...prev, uid]
@@ -50983,51 +51509,42 @@ function Members({ user, leagueId }) {
     const lName = league.name.toLowerCase();
     const matchedDef2 = LEAGUE_ROSTER_DEFS.find((d) => lName.includes(d.nameMatch));
     if (!matchedDef2) return;
-    const presetUids = allMembers.filter((m) => matchedDef2.targetNames.some((targetName) => matchesDadName(targetName, m, user))).map((m) => m.userId);
-    if (matchedDef2.targetNames.includes("me") && !presetUids.includes(user.uid)) {
-      presetUids.push(user.uid);
+    const matchedUids = [];
+    allMembers.forEach((m) => {
+      const match2 = matchedDef2.targetNames.some((targetName) => matchesDadName(targetName, m, user));
+      if (match2) {
+        matchedUids.push(m.userId);
+      }
+    });
+    if (!matchedUids.includes(user.uid)) {
+      matchedUids.push(user.uid);
     }
-    setSelectedUids(presetUids);
-    setRosterStatus(`Applied standard roster for ${matchedDef2.defaultName}`);
+    setSelectedUids(matchedUids);
+    setRosterStatus(`Selected standard preset: ${matchedDef2.targetNames.join(", ")}`);
     setTimeout(() => setRosterStatus(null), 3e3);
   };
   const handleSaveRoster = async () => {
-    if (!leagueId) return;
+    if (!league || isSavingRoster) return;
     setIsSavingRoster(true);
-    setRosterStatus(null);
     try {
-      await updateDoc(doc(db, "leagues", leagueId), {
+      await updateDoc(doc(db, "leagues", league.id), {
         memberIds: selectedUids
       });
       for (const m of allMembers) {
-        const shouldBeInLeague = selectedUids.includes(m.userId);
-        const isCurrentlyIn = m.leagueIds && m.leagueIds.includes(leagueId);
-        if (shouldBeInLeague && !isCurrentlyIn) {
-          try {
-            await updateDoc(doc(db, "members", m.userId), {
-              leagueIds: arrayUnion(leagueId)
-            });
-          } catch (e) {
-            console.warn(`Notice syncing leagueId on member ${m.displayName}:`, e);
-          }
-        } else if (!shouldBeInLeague && isCurrentlyIn) {
-          try {
-            await updateDoc(doc(db, "members", m.userId), {
-              leagueIds: arrayRemove(leagueId)
-            });
-          } catch (e) {
-            console.warn(`Notice removing leagueId on member ${m.displayName}:`, e);
-          }
+        const docRef = doc(db, "members", m.userId);
+        if (selectedUids.includes(m.userId)) {
+          await updateDoc(docRef, {
+            leagueIds: arrayUnion(league.id)
+          });
+        } else {
+          await updateDoc(docRef, {
+            leagueIds: arrayRemove(league.id)
+          });
         }
       }
-      setRosterStatus("Roster updated successfully!");
-      setTimeout(() => {
-        setIsManagingRoster(false);
-        setRosterStatus(null);
-      }, 1e3);
+      setIsManagingRoster(false);
     } catch (err) {
-      console.error("Error saving roster:", err);
-      setRosterStatus("Could not update roster. Please check permissions.");
+      console.error("Failed to update league roster:", err);
     } finally {
       setIsSavingRoster(false);
     }
@@ -51045,7 +51562,6 @@ function Members({ user, leagueId }) {
       };
     });
     sessions.forEach((s) => {
-      if (s.status === "cancelled") return;
       if (s.hostId && stats[s.hostId]) {
         stats[s.hostId].eventsHosted += 1;
       }
@@ -51074,7 +51590,6 @@ function Members({ user, leagueId }) {
     return stats;
   }, [leagueMembers, sessions, activities, messages, posts]);
   const trophies = reactExports.useMemo(() => {
-    if (leagueMembers.length === 0) return [];
     let topChatter = null;
     let maxChat = 0;
     let topAttendee = null;
@@ -51114,136 +51629,165 @@ function Members({ user, leagueId }) {
         topHost = m;
       }
     });
-    const list = [];
-    if (topChatter && maxChat > 0) {
-      list.push({
+    return [
+      {
         id: "gift-of-gab",
         title: "Gift of Gab",
         emoji: "🎙️",
         icon: MessageCircle,
-        color: "from-amber-500/20 to-orange-500/10 text-amber-900 border-amber-200",
+        color: "from-amber-500/20 to-orange-500/10 text-amber-900 border-amber-300",
         badgeBg: "bg-amber-100 text-amber-900 border-amber-300",
-        winner: topChatter,
-        stat: `${maxChat} messages sent`,
+        winner: maxChat > 0 ? topChatter : null,
+        stat: maxChat > 0 ? `${maxChat} chat messages` : null,
         description: "Most active chatter keeping the guys engaged"
-      });
-    }
-    if (topAttendee && maxAttended > 0) {
-      list.push({
+      },
+      {
         id: "ironman",
         title: "Ironman",
         emoji: "⚡",
         icon: Zap,
-        color: "from-emerald-500/20 to-teal-500/10 text-emerald-900 border-emerald-200",
+        color: "from-emerald-500/20 to-teal-500/10 text-emerald-900 border-emerald-300",
         badgeBg: "bg-emerald-100 text-emerald-900 border-emerald-300",
-        winner: topAttendee,
-        stat: `${maxAttended} events attended`,
+        winner: maxAttended > 0 ? topAttendee : null,
+        stat: maxAttended > 0 ? `${maxAttended} events attended` : null,
         description: "Never misses a meetup or outing"
-      });
-    }
-    if (topDecliner && maxDeclined > 0) {
-      list.push({
+      },
+      {
         id: "non-committal",
         title: "The Non-Committal",
         emoji: "🤷‍♂️",
         icon: CircleQuestionMark,
-        color: "from-violet-500/20 to-purple-500/10 text-violet-900 border-violet-200",
+        color: "from-violet-500/20 to-purple-500/10 text-violet-900 border-violet-300",
         badgeBg: "bg-violet-100 text-violet-900 border-violet-300",
-        winner: topDecliner,
-        stat: `${maxDeclined} times passed`,
+        winner: maxDeclined > 0 ? topDecliner : null,
+        stat: maxDeclined > 0 ? `${maxDeclined} times passed` : null,
         description: 'Champion of "let me check with the boss"'
-      });
-    }
-    if (topIdeator && maxIdeas > 0) {
-      list.push({
+      },
+      {
         id: "idea-machine",
         title: "Idea Machine",
         emoji: "💡",
         icon: Lightbulb,
-        color: "from-blue-500/20 to-indigo-500/10 text-blue-900 border-blue-200",
+        color: "from-blue-500/20 to-indigo-500/10 text-blue-900 border-blue-300",
         badgeBg: "bg-blue-100 text-blue-900 border-blue-300",
-        winner: topIdeator,
-        stat: `${maxIdeas} ideas contributed`,
+        winner: maxIdeas > 0 ? topIdeator : null,
+        stat: maxIdeas > 0 ? `${maxIdeas} ideas contributed` : null,
         description: "Always bringing new activities to the table"
-      });
-    }
-    if (topHost && maxHosted > 0) {
-      list.push({
+      },
+      {
         id: "head-coach",
         title: "Head Coach",
         emoji: "👑",
         icon: Crown,
-        color: "from-rose-500/20 to-pink-500/10 text-rose-900 border-rose-200",
+        color: "from-rose-500/20 to-pink-500/10 text-rose-900 border-rose-300",
         badgeBg: "bg-rose-100 text-rose-900 border-rose-300",
-        winner: topHost,
-        stat: `${maxHosted} events organized`,
+        winner: maxHosted > 0 ? topHost : null,
+        stat: maxHosted > 0 ? `${maxHosted} events organized` : null,
         description: "Stepping up to rally the crew and host"
-      });
-    }
-    return list;
+      }
+    ];
   }, [leagueMembers, memberStats]);
   const matchedDef = league ? LEAGUE_ROSTER_DEFS.find((d) => league.name.toLowerCase().includes(d.nameMatch)) : null;
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4 sm:space-y-6 pb-12", children: [
-    league && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4 sm:space-y-6", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-4 sm:p-6 md:p-8 bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-900 rounded-2xl sm:rounded-3xl text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-4 sm:gap-6 relative overflow-hidden", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mt-32" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative z-10 space-y-1.5 text-center md:text-left", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-black uppercase tracking-widest border border-indigo-500/30", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(Sparkles, { size: 12 }),
-            " Active League"
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-2xl sm:text-3xl font-black uppercase tracking-tight", children: league.name }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-indigo-200 font-medium text-xs md:text-sm max-w-md", children: league.description || "Tools to connect and engage with your community. Zero group-text chaos." })
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-6 pb-12", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-bold", children: [
+      { id: "all", label: "All Sections" },
+      { id: "invite", label: "1. Invite Link" },
+      { id: "trophies", label: "2. Trophy Case" },
+      { id: "roster", label: "3. League Roster" },
+      { id: "about", label: "4. About League" }
+    ].map((tab) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "button",
+      {
+        onClick: () => setActiveMiniSection(tab.id),
+        className: `px-3 py-1.5 rounded-xl whitespace-nowrap transition-all cursor-pointer ${activeMiniSection === tab.id ? "bg-indigo-600 text-white shadow-xs font-black" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`,
+        children: tab.label
+      },
+      tab.id
+    )) }),
+    (activeMiniSection === "all" || activeMiniSection === "invite") && /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { id: "section-invite", className: "space-y-2.5", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between pl-1", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-black shadow-2xs", children: "1" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-xs font-black uppercase tracking-[0.2em] text-slate-700", children: "Invite Link" })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative z-10 bg-white/10 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-white/20 flex flex-col items-center gap-3 min-w-[220px]", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-[10px] font-black uppercase tracking-widest text-indigo-300", children: "League Invite Code" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-2xl font-black font-mono tracking-[0.2em] text-white mt-0.5", children: league.inviteCode })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] font-bold text-indigo-700 uppercase tracking-wider bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200/80", children: "Auto-Join Crew" })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-4 sm:p-6 bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-900 rounded-3xl text-white shadow-xl relative overflow-hidden", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mt-32" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1.5 min-w-0", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-indigo-200 text-[10px] font-black uppercase tracking-wider border border-white/15", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(Sparkles, { size: 11 }),
+              " League Invite Code"
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-2xl sm:text-3xl font-black font-mono tracking-[0.2em] text-white", children: (league == null ? void 0 : league.inviteCode) || "..." }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-indigo-200 text-xs sm:text-sm font-medium max-w-md", children: [
+              "Send this link to your dad crew. Tapping it opens Dad League and joins ",
+              /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: league == null ? void 0 : league.name }),
+              " automatically."
+            ] })
           ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-2 w-full", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap sm:flex-nowrap items-center gap-2 w-full md:w-auto shrink-0", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs(
               "button",
               {
                 onClick: handleShareLink,
-                className: "flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all active:scale-95 shadow-md shadow-indigo-900/40 cursor-pointer",
+                className: "flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all active:scale-95 shadow-md shadow-indigo-950 cursor-pointer",
                 title: "Share invite link",
                 children: [
                   copiedLink ? /* @__PURE__ */ jsxRuntimeExports.jsx(Check, { size: 14, className: "text-emerald-300" }) : /* @__PURE__ */ jsxRuntimeExports.jsx(Share2, { size: 14 }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: copiedLink ? "Copied!" : "Share Link" })
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: copiedLink ? "Link Copied!" : "Share Link" })
                 ]
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(
               "button",
               {
                 onClick: handleCopyCode,
-                className: "px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all active:scale-95 border border-white/20 cursor-pointer",
-                title: "Copy invite code",
-                children: copiedCode ? /* @__PURE__ */ jsxRuntimeExports.jsx(Check, { size: 14, className: "text-emerald-300" }) : /* @__PURE__ */ jsxRuntimeExports.jsx(Copy, { size: 14 })
+                className: "px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all active:scale-95 border border-white/20 cursor-pointer flex items-center gap-1.5",
+                title: "Copy invite code only",
+                children: [
+                  copiedCode ? /* @__PURE__ */ jsxRuntimeExports.jsx(Check, { size: 14, className: "text-emerald-300" }) : /* @__PURE__ */ jsxRuntimeExports.jsx(Copy, { size: 14 }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: copiedCode ? "Code Copied" : "Copy Code" })
+                ]
               }
             )
           ] })
         ] })
-      ] }),
-      trophies.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-3", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 pl-2", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Trophy, { size: 16, className: "text-amber-500" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-xs font-black uppercase tracking-[0.2em] text-slate-500", children: "League Trophies & Honors" })
+      ] })
+    ] }),
+    (activeMiniSection === "all" || activeMiniSection === "trophies") && /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { id: "section-trophies", className: "space-y-2.5", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between pl-1", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center text-xs font-black shadow-2xs", children: "2" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-xs font-black uppercase tracking-[0.2em] text-slate-700", children: "Trophy Case" })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5", children: trophies.map((t) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] font-bold text-amber-800 uppercase tracking-wider bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200", children: "Live Honors" })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-xs text-slate-500 pl-1", children: [
+        "Live honors awarded dynamically based on dad activity & participation in ",
+        (league == null ? void 0 : league.name) || "this league",
+        "."
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3", children: trophies.map((t) => {
+        const hasWinner = Boolean(t.winner);
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
-            className: `bg-white rounded-2xl border p-4 shadow-xs flex items-center justify-between gap-3 relative overflow-hidden transition-all hover:shadow-md ${t.color}`,
+            className: `bg-white rounded-2xl border p-4 shadow-xs flex items-center justify-between gap-3 relative overflow-hidden transition-all hover:shadow-md ${hasWinner ? t.color : "border-slate-200 bg-slate-50/50"}`,
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3 min-w-0", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-2xl shrink-0 p-2 bg-white rounded-xl border border-slate-100 shadow-2xs", children: t.emoji }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `text-2xl shrink-0 p-2 rounded-xl border shadow-2xs ${hasWinner ? "bg-white border-slate-100" : "bg-slate-100 border-slate-200 opacity-60"}`, children: t.emoji }),
                 /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "min-w-0", children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-black text-sm text-slate-900 flex items-center gap-1.5 truncate", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: t.title }) }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-xs font-bold text-indigo-700 truncate mt-0.5", children: t.winner.displayName }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[10px] text-slate-400 font-medium truncate mt-0.5", children: t.stat })
+                  hasWinner && t.winner ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-xs font-bold text-indigo-700 truncate mt-0.5", children: t.winner.displayName }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[10px] text-slate-500 font-medium truncate mt-0.5", children: t.stat })
+                  ] }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5", children: "Up for grabs" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[10px] text-slate-400 font-medium truncate mt-0.5", children: t.description })
                 ] })
               ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
+              hasWinner && t.winner && /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "img",
                 {
                   src: t.winner.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${t.winner.userId}`,
@@ -51254,126 +51798,238 @@ function Members({ user, leagueId }) {
             ]
           },
           t.id
-        )) })
-      ] })
+        );
+      }) })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between pl-2", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("h3", { className: "text-xs font-black uppercase tracking-[0.2em] text-slate-500", children: [
-          "League Roster (",
-          leagueMembers.length,
-          ")"
+    (activeMiniSection === "all" || activeMiniSection === "roster") && /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { id: "section-roster", className: "space-y-2.5", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between pl-1", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-black shadow-2xs", children: "3" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("h3", { className: "text-xs font-black uppercase tracking-[0.2em] text-slate-700", children: [
+            "League Roster (",
+            leagueMembers.length,
+            ")"
+          ] })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-[11px] text-slate-400 mt-0.5", children: "Member activity stats and profiles" })
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "button",
+          {
+            onClick: () => {
+              setSelectedUids((league == null ? void 0 : league.memberIds) || leagueMembers.map((m) => m.userId));
+              setIsManagingRoster(true);
+            },
+            className: "flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-xl font-bold text-xs transition-all cursor-pointer shadow-xs active:scale-95",
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(Users, { size: 13 }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Manage Roster" })
+            ]
+          }
+        )
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "button",
-        {
-          onClick: () => {
-            setSelectedUids((league == null ? void 0 : league.memberIds) || leagueMembers.map((m) => m.userId));
-            setIsManagingRoster(true);
-          },
-          className: "flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-xl font-bold text-xs transition-all cursor-pointer shadow-xs active:scale-95",
-          children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(Users, { size: 14 }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Manage Roster" })
-          ]
-        }
-      )
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4", children: leagueMembers.map((member, idx) => {
-      const stats = memberStats[member.userId] || {
-        eventsAttended: 0,
-        ideasAdded: 0,
-        eventsHosted: 0,
-        boardTopics: 0
-      };
-      const memberTrophies = trophies.filter((t) => t.winner.userId === member.userId);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        motion.div,
-        {
-          initial: { opacity: 0, y: 20 },
-          animate: { opacity: 1, y: 0 },
-          transition: { delay: idx * 0.04 },
-          className: "bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 hover:border-indigo-300 transition-all group flex flex-col justify-between",
-          children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-start justify-between gap-3 mb-3", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3.5 min-w-0", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "img",
+      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-500 pl-1", children: "Active roster members, individual participation stats, and profile bios." }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4", children: leagueMembers.map((member, idx) => {
+        const stats = memberStats[member.userId] || {
+          eventsAttended: 0,
+          ideasAdded: 0,
+          eventsHosted: 0,
+          boardTopics: 0
+        };
+        const memberTrophies = trophies.filter((t) => {
+          var _a;
+          return ((_a = t.winner) == null ? void 0 : _a.userId) === member.userId;
+        });
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          motion.div,
+          {
+            initial: { opacity: 0, y: 15 },
+            animate: { opacity: 1, y: 0 },
+            transition: { delay: idx * 0.03 },
+            className: "bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 hover:border-indigo-300 transition-all group flex flex-col justify-between",
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-start justify-between gap-3 mb-3", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3 min-w-0", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "img",
+                    {
+                      src: member.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.userId}`,
+                      className: "w-12 h-12 rounded-2xl border border-slate-200 object-cover shadow-2xs group-hover:scale-105 transition-transform shrink-0",
+                      alt: member.displayName,
+                      referrerPolicy: "no-referrer"
+                    }
+                  ),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "min-w-0", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("h4", { className: "text-sm sm:text-base font-black tracking-tight text-slate-900 truncate", children: member.displayName }),
+                      member.userId === user.uid && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0", children: "You" })
+                    ] }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5 text-slate-400 font-medium text-xs mt-0.5 truncate", children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx(Mail, { size: 12, className: "shrink-0" }),
+                      " ",
+                      member.email
+                    ] })
+                  ] })
+                ] }) }),
+                memberTrophies.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-wrap gap-1.5 mb-3", children: memberTrophies.map((t) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                  "span",
                   {
-                    src: member.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.userId}`,
-                    className: "w-13 h-13 rounded-2xl border border-slate-200 object-cover shadow-2xs group-hover:scale-105 transition-transform shrink-0",
-                    alt: member.displayName,
-                    referrerPolicy: "no-referrer"
-                  }
-                ),
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "min-w-0", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-base sm:text-lg font-black tracking-tight text-slate-900 truncate", children: member.displayName }),
-                    member.userId === user.uid && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0", children: "You" })
+                    className: `inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-2xs ${t.badgeBg}`,
+                    children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: t.emoji }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: t.title })
+                    ]
+                  },
+                  t.id
+                )) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-4 gap-2 bg-slate-50/80 p-2.5 rounded-2xl border border-slate-100 text-center mb-3", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm font-black text-slate-800 leading-none", children: stats.eventsAttended }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1", children: "Attended" })
                   ] }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5 text-slate-400 font-medium text-xs mt-0.5 truncate", children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx(Mail, { size: 12, className: "shrink-0" }),
-                    " ",
-                    member.email
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm font-black text-slate-800 leading-none", children: stats.ideasAdded }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1", children: "Ideas" })
+                  ] }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm font-black text-slate-800 leading-none", children: stats.eventsHosted }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1", children: "Hosted" })
+                  ] }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm font-black text-slate-800 leading-none", children: stats.boardTopics }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1", children: "Board" })
+                  ] })
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-2 pt-2 border-t border-slate-100 text-xs text-slate-600", children: [
+                  member.location && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx(MapPin, { size: 13, className: "text-indigo-500 shrink-0" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "truncate", children: member.location })
+                  ] }),
+                  member.interests && member.interests.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start gap-1.5", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx(Hash, { size: 13, className: "text-indigo-500 shrink-0 mt-0.5" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-wrap gap-1", children: member.interests.map((i) => /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md text-[10px] font-bold", children: i }, i)) })
                   ] })
                 ] })
-              ] }) }),
-              memberTrophies.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-wrap gap-1.5 mb-3", children: memberTrophies.map((t) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
-                "span",
-                {
-                  className: `inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-2xs ${t.badgeBg}`,
-                  children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: t.emoji }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: t.title })
-                  ]
-                },
-                t.id
-              )) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-4 gap-2 bg-slate-50/80 p-3 rounded-2xl border border-slate-100 text-center mb-3", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-base font-black text-slate-800 leading-none", children: stats.eventsAttended }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1", children: "Attended" })
-                ] }),
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-base font-black text-slate-800 leading-none", children: stats.ideasAdded }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1", children: "Ideas" })
-                ] }),
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-base font-black text-slate-800 leading-none", children: stats.eventsHosted }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1", children: "Hosted" })
-                ] }),
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-base font-black text-slate-800 leading-none", children: stats.boardTopics }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1", children: "Board" })
-                ] })
               ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-2 pt-2 border-t border-slate-100 text-xs text-slate-600", children: [
-                member.location && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(MapPin, { size: 13, className: "text-indigo-500 shrink-0" }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "truncate", children: member.location })
-                ] }),
-                member.interests && member.interests.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start gap-1.5", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(Hash, { size: 13, className: "text-indigo-500 shrink-0 mt-0.5" }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-wrap gap-1", children: member.interests.map((i) => /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md text-[10px] font-bold", children: i }, i)) })
-                ] })
+              member.availability && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-3 pt-2 border-t border-slate-100 text-slate-500 text-xs italic bg-slate-50/50 p-2.5 rounded-xl", children: [
+                '"',
+                member.availability,
+                '"'
               ] })
+            ]
+          },
+          member.userId
+        );
+      }) }),
+      leagueMembers.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-8 text-center bg-white rounded-3xl border border-dashed border-slate-300 space-y-2", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Users, { size: 30, className: "mx-auto text-slate-400" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("h4", { className: "font-black text-slate-700 uppercase text-sm", children: "No Members in This League" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-400 max-w-sm mx-auto", children: 'Tap "Manage Roster" above to select friends, or send the invite link.' })
+      ] })
+    ] }),
+    (activeMiniSection === "all" || activeMiniSection === "about") && /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { id: "section-about", className: "space-y-2.5", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between pl-1", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "w-6 h-6 rounded-lg bg-slate-800 text-white flex items-center justify-center text-xs font-black shadow-2xs", children: "4" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-xs font-black uppercase tracking-[0.2em] text-slate-700", children: "About This League" })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] font-bold text-slate-600 uppercase tracking-wider bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200", children: "Overview & Rules" })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-5", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-3", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start justify-between gap-3", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("h4", { className: "text-lg font-black text-slate-900 uppercase tracking-tight", children: (league == null ? void 0 : league.name) || "Your League" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-400 font-medium", children: "Active Dad League community crew" })
             ] }),
-            member.availability && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-3 pt-2 border-t border-slate-100 text-slate-500 text-xs italic bg-slate-50/50 p-2.5 rounded-xl", children: [
-              '"',
-              member.availability,
-              '"'
+            !isEditingAbout ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              "button",
+              {
+                onClick: () => setIsEditingAbout(true),
+                className: "flex items-center gap-1 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer",
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(Pencil, { size: 12 }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Edit Info" })
+                ]
+              }
+            ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "button",
+              {
+                onClick: () => setIsEditingAbout(false),
+                className: "px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer",
+                children: "Cancel"
+              }
+            )
+          ] }),
+          isEditingAbout ? /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { onSubmit: handleSaveLeagueDescription, className: "space-y-2.5 pt-1", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "textarea",
+              {
+                value: leagueDescInput,
+                onChange: (e) => setLeagueDescInput(e.target.value),
+                placeholder: "Describe what this league is about...",
+                className: "w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[80px]"
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-end gap-2", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "button",
+                {
+                  type: "button",
+                  onClick: () => setIsEditingAbout(false),
+                  className: "px-3.5 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold",
+                  children: "Cancel"
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                "button",
+                {
+                  type: "submit",
+                  disabled: isSavingDesc,
+                  className: "px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 flex items-center gap-1",
+                  children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx(Save, { size: 12 }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: isSavingDesc ? "Saving..." : "Save Description" })
+                  ]
+                }
+              )
             ] })
-          ]
-        },
-        member.userId
-      );
-    }) }),
-    leagueMembers.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-12 text-center bg-white rounded-3xl border border-dashed border-slate-300 space-y-3", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Users, { size: 32, className: "mx-auto text-slate-400" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("h4", { className: "font-black text-slate-700 uppercase", children: "No Members in This League" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-400 max-w-sm mx-auto", children: 'Click "Manage Roster" above to add friends, or use the invite code to invite fellow dads.' })
+          ] }) : /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm text-slate-600 leading-relaxed bg-slate-50/70 p-3.5 rounded-2xl border border-slate-100", children: (league == null ? void 0 : league.description) || "Tools to connect and engage with your community. Zero group-text chaos." })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-indigo-50/60 p-3 rounded-2xl border border-indigo-100", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-base sm:text-lg font-black text-indigo-900 leading-none", children: sessions.length }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] font-bold text-indigo-600 uppercase tracking-wider block mt-1", children: "Events" })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-indigo-50/60 p-3 rounded-2xl border border-indigo-100", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-base sm:text-lg font-black text-indigo-900 leading-none", children: activities.length }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] font-bold text-indigo-600 uppercase tracking-wider block mt-1", children: "Ideas" })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-indigo-50/60 p-3 rounded-2xl border border-indigo-100", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-base sm:text-lg font-black text-indigo-900 leading-none", children: posts.length }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] font-bold text-indigo-600 uppercase tracking-wider block mt-1", children: "Topics" })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-indigo-50/60 p-3 rounded-2xl border border-indigo-100", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-base sm:text-lg font-black text-indigo-900 leading-none", children: messages.length }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] font-bold text-indigo-600 uppercase tracking-wider block mt-1", children: "Messages" })
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-2 pt-2 border-t border-slate-100", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("h5", { className: "text-[10px] font-black uppercase tracking-widest text-slate-400", children: "Dad League Ground Rules" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-3 gap-2.5", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-black text-xs text-slate-800 flex items-center gap-1", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "1. Respect the RSVP" }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-[11px] text-slate-500 leading-snug", children: "Be in or be out. If life happens, update your status early so the guys can plan." })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-black text-xs text-slate-800 flex items-center gap-1", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "2. Real Hangouts" }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-[11px] text-slate-500 leading-snug", children: "A 90-minute meetup in person beats 500 texts in a group-chat thread every time." })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-black text-xs text-slate-800 flex items-center gap-1", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "3. Anyone Can Host" }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-[11px] text-slate-500 leading-snug", children: "Suggest an activity in the Ideas tab or pick a day on the calendar to rally the crew." })
+            ] })
+          ] })
+        ] })
+      ] })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(AnimatePresence, { children: isManagingRoster && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "fixed inset-0 z-50 flex items-center justify-center p-4", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -51394,9 +52050,9 @@ function Members({ user, leagueId }) {
           exit: { opacity: 0, scale: 0.95, y: 20 },
           className: "relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]",
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-6 border-b border-slate-100 flex items-center justify-between", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-5 border-b border-slate-100 flex items-center justify-between", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-lg font-black uppercase tracking-tight text-slate-900", children: "Manage League Roster" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-base sm:text-lg font-black uppercase tracking-tight text-slate-900", children: "Manage League Roster" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-xs text-slate-500", children: [
                   "Select the members who belong in ",
                   /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: league == null ? void 0 : league.name })
@@ -51406,15 +52062,15 @@ function Members({ user, leagueId }) {
                 "button",
                 {
                   onClick: () => setIsManagingRoster(false),
-                  className: "p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors cursor-pointer",
+                  className: "p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors cursor-pointer",
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx(X, { size: 18 })
                 }
               )
             ] }),
-            matchedDef && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-4 bg-indigo-50/70 border-b border-indigo-100 flex items-center justify-between gap-3", children: [
+            matchedDef && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-3.5 bg-indigo-50/70 border-b border-indigo-100 flex items-center justify-between gap-3", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-xs text-indigo-900", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-black uppercase tracking-wider block text-[10px] text-indigo-600", children: "Standard Setup" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: matchedDef.targetNames.map((n) => n === "me" ? "You" : n.charAt(0).toUpperCase() + n.slice(1)).join(", ") })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-black uppercase tracking-wider block text-[9px] text-indigo-600", children: "Standard Setup" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-medium text-xs", children: matchedDef.targetNames.map((n) => n === "me" ? "You" : n.charAt(0).toUpperCase() + n.slice(1)).join(", ") })
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
@@ -51425,33 +52081,33 @@ function Members({ user, leagueId }) {
                 }
               )
             ] }),
-            rosterStatus && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "px-6 py-2.5 bg-emerald-50 text-emerald-800 text-xs font-bold border-b border-emerald-100 text-center", children: rosterStatus }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "p-4 overflow-y-auto space-y-2 flex-1 divide-y divide-slate-100", children: allMembers.map((m) => {
+            rosterStatus && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "px-5 py-2 bg-emerald-50 text-emerald-800 text-xs font-bold border-b border-emerald-100 text-center", children: rosterStatus }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "p-4 overflow-y-auto space-y-1.5 flex-1 divide-y divide-slate-100", children: allMembers.map((m) => {
               const isChecked = selectedUids.includes(m.userId);
               return /* @__PURE__ */ jsxRuntimeExports.jsxs(
                 "div",
                 {
                   onClick: () => toggleUserInRoster(m.userId),
-                  className: `flex items-center justify-between p-3 rounded-2xl cursor-pointer transition-all pt-3 ${isChecked ? "bg-indigo-50/60 text-indigo-950 font-bold" : "hover:bg-slate-50 text-slate-700"}`,
+                  className: `flex items-center justify-between p-2.5 rounded-2xl cursor-pointer transition-all ${isChecked ? "bg-indigo-50/60 text-indigo-950 font-bold" : "hover:bg-slate-50 text-slate-700"}`,
                   children: [
                     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3 min-w-0", children: [
                       /* @__PURE__ */ jsxRuntimeExports.jsx(
                         "img",
                         {
                           src: m.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.userId}`,
-                          className: "w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0",
+                          className: "w-9 h-9 rounded-xl object-cover border border-slate-200 shrink-0",
                           alt: ""
                         }
                       ),
                       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "min-w-0", children: [
-                        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-sm truncate", children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-xs sm:text-sm truncate", children: [
                           m.displayName,
                           m.userId === user.uid && " (You)"
                         ] }),
                         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[10px] text-slate-400 truncate", children: m.email })
                       ] })
                     ] }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `w-6 h-6 rounded-lg flex items-center justify-center border transition-all shrink-0 ml-2 ${isChecked ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-300 bg-white"}`, children: isChecked && /* @__PURE__ */ jsxRuntimeExports.jsx(Check, { size: 14 }) })
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `w-5 h-5 rounded-lg flex items-center justify-center border transition-all shrink-0 ml-2 ${isChecked ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-300 bg-white"}`, children: isChecked && /* @__PURE__ */ jsxRuntimeExports.jsx(Check, { size: 12 }) })
                   ]
                 },
                 m.userId
@@ -51463,7 +52119,7 @@ function Members({ user, leagueId }) {
                 {
                   type: "button",
                   onClick: () => setIsManagingRoster(false),
-                  className: "px-4 py-2.5 rounded-xl text-xs font-black uppercase text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer",
+                  className: "px-4 py-2 rounded-xl text-xs font-black uppercase text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer",
                   children: "Cancel"
                 }
               ),
@@ -51473,7 +52129,7 @@ function Members({ user, leagueId }) {
                   type: "button",
                   disabled: isSavingRoster,
                   onClick: handleSaveRoster,
-                  className: "px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50 cursor-pointer",
+                  className: "px-5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50 cursor-pointer",
                   children: isSavingRoster ? "Saving..." : "Save Roster"
                 }
               )
@@ -52534,7 +53190,7 @@ registerPlugin("SystemBars", {
   web: () => new SystemBarsPluginWeb()
 });
 const App$1 = registerPlugin("App", {
-  web: () => __vitePreload(() => import("./web-DIlQqm7W.js"), true ? [] : void 0).then((m) => new m.AppWeb())
+  web: () => __vitePreload(() => import("./web-DZpRh6PJ.js"), true ? [] : void 0).then((m) => new m.AppWeb())
 });
 function safeGetStorage(key) {
   try {

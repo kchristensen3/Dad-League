@@ -4,7 +4,6 @@ import { League } from '../types';
 import { 
   fetchLeagueByInviteCode, 
   trackInviteTap, 
-  openAppOrStore, 
   autoJoinLeagueWithCode 
 } from '../lib/inviteUtils';
 import { 
@@ -12,9 +11,7 @@ import {
   Users, 
   Sparkles, 
   ArrowRight, 
-  Smartphone, 
   CheckCircle2, 
-  Download, 
   X,
   AlertCircle
 } from 'lucide-react';
@@ -39,15 +36,8 @@ export default function InviteLandingCard({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
-  const [isAppleDevice, setIsAppleDevice] = useState(false);
 
   useEffect(() => {
-    // Detect iOS
-    if (typeof window !== 'undefined') {
-      const ua = window.navigator.userAgent.toLowerCase();
-      setIsAppleDevice(/iphone|ipad|ipod/.test(ua));
-    }
-
     let isMounted = true;
     async function loadLeague() {
       setLoading(true);
@@ -57,7 +47,6 @@ export default function InviteLandingCard({
 
       if (found) {
         setLeague(found);
-        // Track the tap metric for organizer conversion analytics
         trackInviteTap(found.id);
       } else {
         setError(`We couldn't find an active league with code "${inviteCode}". It may have expired or been updated.`);
@@ -73,8 +62,6 @@ export default function InviteLandingCard({
 
   const handleJoinClick = async () => {
     if (!currentUser) {
-      // User must authenticate first; their pendingInviteCode is already stored in localStorage
-      // and will auto-join immediately upon auth completion.
       onSignInRequired();
       return;
     }
@@ -89,10 +76,6 @@ export default function InviteLandingCard({
     } else {
       setError(result.error || "Failed to join league. Please try again.");
     }
-  };
-
-  const handleOpenNativeApp = () => {
-    openAppOrStore(inviteCode);
   };
 
   return (
@@ -110,7 +93,7 @@ export default function InviteLandingCard({
           {onDismiss && (
             <button 
               onClick={onDismiss}
-              className="absolute top-4 right-4 p-2 text-white/60 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+              className="absolute top-4 right-4 p-2 text-white/60 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
               title="Close"
             >
               <X size={20} />
@@ -141,7 +124,7 @@ export default function InviteLandingCard({
           {loading && (
             <div className="py-8 flex flex-col items-center justify-center gap-3">
               <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Verifying code {inviteCode}...</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Verifying invite code {inviteCode}...</p>
             </div>
           )}
 
@@ -157,32 +140,26 @@ export default function InviteLandingCard({
 
           {league && !loading && (
             <>
-              {/* League Highlights Bar */}
-              <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+              {/* League Highlights */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-black">
                     <Users size={20} />
                   </div>
                   <div>
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Crew Size</span>
-                    <span className="text-sm font-black text-slate-900">{league.memberIds.length} Dads</span>
+                    <span className="text-sm font-black text-slate-900">{league.memberIds?.length || 0} Dads</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-black">
-                    <CheckCircle2 size={20} />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Code Applied</span>
-                    <span className="text-sm font-black font-mono text-emerald-700">{inviteCode}</span>
-                  </div>
+                <div className="flex items-center gap-2 text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200/80">
+                  <CheckCircle2 size={16} />
+                  <span className="text-xs font-black uppercase tracking-wider">Valid Invite</span>
                 </div>
               </div>
 
-              {/* Call to Actions */}
+              {/* Single Primary Join Button */}
               <div className="space-y-3 pt-2">
-                {/* Primary 1-Tap Join Action */}
                 <button
                   onClick={handleJoinClick}
                   disabled={isJoining}
@@ -201,31 +178,6 @@ export default function InviteLandingCard({
                 <p className="text-center text-[10px] font-bold text-slate-400">
                   {currentUser ? "No typing required · 1-tap instant membership" : "Google or Email sign-in automatically enters you into the league"}
                 </p>
-
-                {/* App Handoff / TestFlight Option */}
-                <div className="pt-4 border-t border-slate-100">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2.5 text-center">
-                    Prefer Native App?
-                  </div>
-                  <div className="flex gap-2.5">
-                    <button
-                      onClick={handleOpenNativeApp}
-                      className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-black uppercase tracking-wider text-[10px] flex items-center justify-center gap-1.5 transition-colors"
-                    >
-                      <Smartphone size={14} className="text-indigo-600" />
-                      Open App
-                    </button>
-                    <a
-                      href="https://testflight.apple.com"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-black uppercase tracking-wider text-[10px] flex items-center justify-center gap-1.5 transition-colors"
-                    >
-                      <Download size={14} className="text-slate-500" />
-                      {isAppleDevice ? "Get on TestFlight" : "Get App"}
-                    </a>
-                  </div>
-                </div>
               </div>
             </>
           )}
@@ -234,7 +186,7 @@ export default function InviteLandingCard({
             <div className="pt-2">
               <button
                 onClick={onDismiss || (() => window.location.href = '/')}
-                className="w-full py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black uppercase tracking-wider text-xs transition-colors"
+                className="w-full py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black uppercase tracking-wider text-xs transition-colors cursor-pointer"
               >
                 Go to Dad League Home
               </button>

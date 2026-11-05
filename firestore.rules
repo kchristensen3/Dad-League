@@ -103,17 +103,20 @@ service cloud.firestore {
     }
 
     match /leagues/{leagueId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
+      allow get: if true;
+      allow list: if true;
       allow create: if isSignedIn() && isValidId(leagueId);
-      allow update: if isSignedIn() && (
+      allow update: if (
         incoming().diff(existing()).affectedKeys().hasOnly(['inviteTaps']) ||
-        incoming().diff(existing()).affectedKeys().hasOnly(['memberIds']) ||
-        incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'inviteJoins']) ||
-        incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'inviteTaps']) ||
-        incoming().diff(existing()).affectedKeys().hasOnly(['description']) ||
-        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description']) ||
-        (isOwner(existing().ownerId) && incoming().ownerId == existing().ownerId)
+        (isSignedIn() && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['memberIds']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'inviteJoins']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'inviteTaps']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['description']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['inviteCode']) ||
+          (isOwner(existing().ownerId) && incoming().ownerId == existing().ownerId)
+        ))
       );
     }
 

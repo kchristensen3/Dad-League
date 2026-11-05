@@ -63,7 +63,6 @@ import Members from './components/Members';
 import LeagueManager from './components/LeagueManager';
 import LegalModal from './components/LegalModal';
 import InviteLandingCard from './components/InviteLandingCard';
-import { App as CapApp } from '@capacitor/app';
 import { 
   getInviteCodeFromUrl, 
   getStoredInviteCode, 
@@ -119,7 +118,7 @@ export default function App() {
   const [activeInviteCode, setActiveInviteCode] = useState<string | null>(() => getInviteCodeFromUrl() || getStoredInviteCode());
   const [showInviteModal, setShowInviteModal] = useState<boolean>(() => Boolean(getInviteCodeFromUrl()));
 
-  // 1. Detect URL invite codes and Capacitor Native App deep links
+  // 1. Detect URL invite codes
   useEffect(() => {
     const urlCode = getInviteCodeFromUrl();
     if (urlCode) {
@@ -127,36 +126,6 @@ export default function App() {
       setActiveInviteCode(urlCode);
       setShowInviteModal(true);
     }
-
-    let removeAppListener: (() => void) | null = null;
-    CapApp.addListener('appUrlOpen', (event) => {
-      try {
-        const parsed = new URL(event.url);
-        const invite = parsed.searchParams.get('invite') || parsed.searchParams.get('code');
-        if (invite) {
-          const clean = invite.trim().toUpperCase();
-          storePendingInviteCode(clean);
-          setActiveInviteCode(clean);
-          setShowInviteModal(true);
-        }
-      } catch (e) {
-        const match = event.url.match(/[?&](?:invite|code)=([a-zA-Z0-9_-]+)/i);
-        if (match && match[1]) {
-          const clean = match[1].trim().toUpperCase();
-          storePendingInviteCode(clean);
-          setActiveInviteCode(clean);
-          setShowInviteModal(true);
-        }
-      }
-    }).then(sub => {
-      removeAppListener = () => sub.remove();
-    }).catch(() => {
-      // Browser environment without capacitor app plugin
-    });
-
-    return () => {
-      if (removeAppListener) removeAppListener();
-    };
   }, []);
 
   // 2. Auto-join pipeline: whenever user is authenticated and there is a pending invite code
@@ -843,8 +812,8 @@ export default function App() {
                       >
                         <Download size={18} />
                         <div className="flex flex-col text-left">
-                          <span className="text-sm leading-tight">Export App (.ZIP)</span>
-                          <span className="text-[10px] text-slate-400 font-normal">Capacitor & GitHub ready</span>
+                          <span className="text-sm leading-tight">Export Code (.ZIP)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Complete web project</span>
                         </div>
                       </a>
                     </div>

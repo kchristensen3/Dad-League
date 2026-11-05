@@ -37,7 +37,6 @@ export default function Members({ user, leagueId }: { user: User, leagueId: stri
   const [allMembers, setAllMembers] = useState<Member[]>([]);
   const [league, setLeague] = useState<League | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [copiedCode, setCopiedCode] = useState(false);
 
   // Active Mini-Section navigation filter
   const [activeMiniSection, setActiveMiniSection] = useState<'all' | 'invite' | 'trophies' | 'roster' | 'about'>('all');
@@ -123,32 +122,28 @@ export default function Members({ user, leagueId }: { user: User, leagueId: stri
 
   const inviteUrl = league?.inviteCode ? getUniversalInviteUrl(league.inviteCode) : '';
 
-  const handleShareLink = async () => {
+  const handleInviteDads = async () => {
     if (!league || !inviteUrl) return;
 
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
           title: `Join ${league.name} on Dad League`,
-          text: `You're invited to join ${league.name} on Dad League! Tap to auto-join the crew:`,
+          text: `You're invited to join ${league.name} on Dad League! Tap to join the crew:`,
           url: inviteUrl
         });
         return;
-      } catch (err) {
-        // Fallback to clipboard if user dismissed share dialog
+      } catch {
+        // Fallback to clipboard if share sheet dismissed
       }
     }
 
-    navigator.clipboard.writeText(inviteUrl);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2500);
-  };
-
-  const handleCopyCode = () => {
-    if (league?.inviteCode) {
-      navigator.clipboard.writeText(league.inviteCode);
-      setCopiedCode(true);
-      setTimeout(() => setCopiedCode(false), 2500);
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    } catch {
+      // Fallback
     }
   };
 
@@ -403,7 +398,7 @@ export default function Members({ user, leagueId }: { user: User, leagueId: stri
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-bold">
         {[
           { id: 'all', label: 'All Sections' },
-          { id: 'invite', label: '1. Invite Link' },
+          { id: 'invite', label: '1. Invite Dads' },
           { id: 'trophies', label: '2. Trophy Case' },
           { id: 'roster', label: '3. League Roster' },
           { id: 'about', label: '4. About League' },
@@ -422,7 +417,7 @@ export default function Members({ user, leagueId }: { user: User, leagueId: stri
         ))}
       </div>
 
-      {/* MINI SECTION 1: INVITE LINK */}
+      {/* MINI SECTION 1: INVITE DADS */}
       {(activeMiniSection === 'all' || activeMiniSection === 'invite') && (
         <section id="section-invite" className="space-y-2.5">
           <div className="flex items-center justify-between pl-1">
@@ -431,46 +426,38 @@ export default function Members({ user, leagueId }: { user: User, leagueId: stri
                 1
               </span>
               <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-700">
-                Invite Link
+                Invite Dads
               </h3>
             </div>
             <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200/80">
-              Auto-Join Crew
+              1-Tap Join
             </span>
           </div>
 
-          <div className="p-4 sm:p-6 bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-900 rounded-3xl text-white shadow-xl relative overflow-hidden">
+          <div className="p-5 sm:p-6 bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-900 rounded-3xl text-white shadow-xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
 
-            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
+            <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6">
               <div className="space-y-1.5 min-w-0">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-indigo-200 text-[10px] font-black uppercase tracking-wider border border-white/15">
-                  <Sparkles size={11} /> League Invite Code
+                  <Sparkles size={11} /> Invite Crew
                 </div>
-                <div className="text-2xl sm:text-3xl font-black font-mono tracking-[0.2em] text-white">
-                  {league?.inviteCode || '...'}
-                </div>
-                <p className="text-indigo-200 text-xs sm:text-sm font-medium max-w-md">
-                  Send this link to your dad crew. Tapping it opens Dad League and joins <strong>{league?.name}</strong> automatically.
+                <h4 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight">
+                  Invite Dads to {league?.name || 'Your League'}
+                </h4>
+                <p className="text-indigo-200 text-xs sm:text-sm font-medium max-w-md leading-relaxed">
+                  Tap to share your invite link. Any dad who clicks it is automatically guided to join <strong>{league?.name}</strong> in one step.
                 </p>
               </div>
 
-              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full md:w-auto shrink-0">
+              <div className="shrink-0 w-full sm:w-auto">
                 <button
-                  onClick={handleShareLink}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all active:scale-95 shadow-md shadow-indigo-950 cursor-pointer"
-                  title="Share invite link"
+                  onClick={handleInviteDads}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-indigo-500 hover:bg-indigo-400 active:scale-95 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-indigo-950 cursor-pointer"
+                  title="Invite dads to join this league"
                 >
-                  {copiedLink ? <Check size={14} className="text-emerald-300" /> : <Share2 size={14} />}
-                  <span>{copiedLink ? "Link Copied!" : "Share Link"}</span>
-                </button>
-                <button
-                  onClick={handleCopyCode}
-                  className="px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all active:scale-95 border border-white/20 cursor-pointer flex items-center gap-1.5"
-                  title="Copy invite code only"
-                >
-                  {copiedCode ? <Check size={14} className="text-emerald-300" /> : <Copy size={14} />}
-                  <span>{copiedCode ? "Code Copied" : "Copy Code"}</span>
+                  {copiedLink ? <Check size={16} className="text-emerald-300" /> : <Share2 size={16} />}
+                  <span>{copiedLink ? "Invite Link Copied!" : "Invite Dads"}</span>
                 </button>
               </div>
             </div>

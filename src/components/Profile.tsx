@@ -16,7 +16,6 @@ import {
   ShieldCheck, 
   FileText, 
   Download, 
-  Smartphone, 
   Terminal, 
   Check, 
   FolderDown,
@@ -560,109 +559,69 @@ export default function Profile({
         </div>
       </div>
 
-      {/* Export & Mobile Build Section (Capacitor & GitHub) */}
+      {/* Export & Code Section */}
       <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-xl p-6 md:p-8 shadow-xl border border-indigo-900/50 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-black uppercase tracking-wider mb-2 border border-indigo-500/30">
-              <Smartphone size={12} /> Mobile & Code Export
+              <Terminal size={12} /> Code & Deployment
             </div>
             <h4 className="text-xl font-black uppercase tracking-tight text-white flex items-center gap-2">
-              Export App & Build in Capacitor
+              Export App & Push to GitHub
             </h4>
             <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
-              Export the complete codebase (including iOS/Android Capacitor config, legal files, icons, and Firebase logic) to push to GitHub or compile for the Apple App Store and Google Play.
+              Download the complete clean web source code with all components, Firebase integration, and styles ready to commit to your GitHub repository.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
             <a
               href="/dad-league-source.zip"
               download="dad-league-source.zip"
-              className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-black uppercase text-xs tracking-wider rounded-xl shadow-lg shadow-indigo-600/30 transition-all border border-indigo-400/30"
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-black uppercase text-xs tracking-wider rounded-xl shadow-lg shadow-indigo-600/30 transition-all border border-indigo-400/30 cursor-pointer"
             >
               <Download size={16} /> Download .ZIP
             </a>
             <button
               onClick={() => setShowExportGuide(!showExportGuide)}
-              className="px-4 py-3 bg-white/10 hover:bg-white/20 active:scale-95 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all border border-white/10 text-center"
+              className="px-4 py-3 bg-white/10 hover:bg-white/20 active:scale-95 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all border border-white/10 text-center cursor-pointer"
             >
-              {showExportGuide ? 'Hide Guide' : 'Setup Guide'}
+              {showExportGuide ? 'Hide Guide' : 'Git Guide'}
             </button>
           </div>
         </div>
 
         {showExportGuide && (
-          <div className="pt-4 border-t border-white/10 space-y-5 text-left">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Step 1: Push to GitHub */}
-              <div className="bg-black/30 rounded-xl p-4 border border-white/10 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
-                    <Terminal size={14} /> 1. Push to GitHub
-                  </span>
-                  <button
-                    onClick={() => copyToClipboard('git init\ngit add .\ngit commit -m "Initial Dad League commit"\ngit branch -M main\ngit remote add origin <YOUR_GITHUB_REPO_URL>\ngit push -u origin main', 'github')}
-                    className="text-[10px] font-black uppercase tracking-wider text-slate-400 hover:text-white flex items-center gap-1"
-                  >
-                    {copiedCmd === 'github' ? <Check size={12} className="text-emerald-400" /> : null}
-                    {copiedCmd === 'github' ? 'Copied' : 'Copy Commands'}
-                  </button>
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  Unzip the downloaded archive on your computer, open your terminal in the folder, and run:
-                </p>
-                <pre className="p-2.5 bg-black/60 rounded-lg text-[11px] text-indigo-200 font-mono overflow-x-auto leading-relaxed border border-white/5">
-                  <code>{`git init
+          <div className="pt-4 border-t border-white/10 space-y-4 text-left">
+            <div className="bg-black/30 rounded-xl p-4 border border-white/10 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+                  <Terminal size={14} /> Push to GitHub
+                </span>
+                <button
+                  onClick={() => copyToClipboard('git init\ngit add .\ngit commit -m "Initial Dad League commit"\ngit branch -M main\ngit remote add origin <YOUR_GITHUB_REPO_URL>\ngit push -u origin main', 'github')}
+                  className="text-[10px] font-black uppercase tracking-wider text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                >
+                  {copiedCmd === 'github' ? <Check size={12} className="text-emerald-400" /> : null}
+                  {copiedCmd === 'github' ? 'Copied' : 'Copy Commands'}
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Unzip the downloaded archive on your computer, open your terminal in the folder, and run:
+              </p>
+              <pre className="p-3 bg-black/60 rounded-lg text-[11px] text-indigo-200 font-mono overflow-x-auto leading-relaxed border border-white/5">
+                <code>{`git init
 git add .
 git commit -m "Initial Dad League commit"
 git branch -M main
 git remote add origin https://github.com/<user>/dad-league.git
 git push -u origin main`}</code>
-                </pre>
-              </div>
-
-              {/* Step 2: Build with Capacitor */}
-              <div className="bg-black/30 rounded-xl p-4 border border-white/10 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
-                    <Smartphone size={14} /> 2. Build for iOS / Android
-                  </span>
-                  <button
-                    onClick={() => copyToClipboard('npm install\nnpm run build\nnpx cap add ios\nnpx cap sync\nnpx cap open ios', 'cap')}
-                    className="text-[10px] font-black uppercase tracking-wider text-slate-400 hover:text-white flex items-center gap-1"
-                  >
-                    {copiedCmd === 'cap' ? <Check size={12} className="text-emerald-400" /> : null}
-                    {copiedCmd === 'cap' ? 'Copied' : 'Copy Commands'}
-                  </button>
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  Your project is already configured with <code className="text-white">capacitor.config.json</code>! In your terminal:
-                </p>
-                <pre className="p-2.5 bg-black/60 rounded-lg text-[11px] text-emerald-200 font-mono overflow-x-auto leading-relaxed border border-white/5">
-                  <code>{`npm install
-npm run build
-npx cap add ios      # (or: npx cap add android)
-npx cap sync
-npx cap open ios     # opens in Xcode for App Store`}</code>
-                </pre>
-              </div>
-            </div>
-
-            <div className="p-3 bg-indigo-900/30 border border-indigo-500/20 rounded-xl text-xs text-indigo-200 flex items-center justify-between">
-              <span>📄 Comprehensive mobile instructions are saved in <strong>CAPACITOR_SETUP.md</strong> inside the zip.</span>
-              <a
-                href="/dad-league-source.zip"
-                download="dad-league-source.zip"
-                className="text-[10px] font-black uppercase tracking-widest text-indigo-300 hover:text-white underline ml-3 shrink-0"
-              >
-                Download Archive (.ZIP)
-              </a>
+              </pre>
             </div>
           </div>
         )}
       </div>
 
-      {/* Account & Privacy Section (Required by Apple App Store Guideline 5.1.1(v)) */}
+      {/* Account & Data Privacy Section */}
       <div className="bg-white rounded-xl border border-slate-200 p-6 md:p-8 shadow-sm space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>

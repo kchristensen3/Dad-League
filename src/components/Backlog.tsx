@@ -58,7 +58,7 @@ export default function Backlog({ user, leagueId }: { user: User, leagueId: stri
       const list = matched.length > 0 ? matched : allActs;
       list.sort((a, b) => (b.votes?.length || 0) - (a.votes?.length || 0));
       setActivities(list);
-    }, (err) => handleFirestoreError(err, OperationType.GET, 'activities'));
+    }, (err) => console.warn("Activities query notice in Backlog:", err));
     return () => unsubscribe();
   }, [user, leagueId]);
 

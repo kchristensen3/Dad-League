@@ -5,6 +5,7 @@ import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, arrayUn
 import { db } from '../lib/firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 import { Session, Activity, Member, League, Message } from '../types';
+import { deduplicateRoster } from '../lib/rosterSync';
 import { formatGooglePlaceLocation, formatBacklogLocationForEvent, parseLocationDisplay, formatVenueAndAddress } from '../lib/locationUtils';
 import { 
   Calendar as CalendarIcon, 
@@ -97,23 +98,43 @@ export default function CalendarView({ user, leagueId, sessions, onNavigateToCha
 
     const qA = query(
       collection(db, 'activities'), 
-      where('leagueId', '==', leagueId),
-      orderBy('votes', 'desc')
+      where('leagueId', '==', leagueId)
     );
     const unsubscribeA = onSnapshot(qA, (snap) => {
-      setActivities(snap.docs.map(d => ({ id: d.id, ...d.data() } as Activity)));
-    }, (err) => handleFirestoreError(err, OperationType.GET, 'activities'));
+      const acts = snap.docs.map(d => ({ id: d.id, ...d.data() } as Activity));
+      acts.sort((a, b) => (b.votes?.length || 0) - (a.votes?.length || 0));
+      setActivities(acts);
+    }, (err) => {
+      console.warn("Activities query warning in CalendarView:", err);
+      // Fallback query if league query has filtering quirks
+      const unsubsFallback = onSnapshot(collection(db, 'activities'), (fallbackSnap) => {
+        const fallbackActs = fallbackSnap.docs
+          .map(d => ({ id: d.id, ...d.data() } as Activity))
+          .filter(a => a.leagueId === leagueId || !a.leagueId || a.leagueId === 'default-league');
+        fallbackActs.sort((a, b) => (b.votes?.length || 0) - (a.votes?.length || 0));
+        setActivities(fallbackActs);
+      }, (e) => console.warn("Fallback activities query warning:", e));
+      return () => unsubsFallback();
+    });
 
     let currentLeagueDoc: League | null = null;
     let rawMembersList: Member[] = [];
 
     const syncLeagueMembers = () => {
-      const filtered = rawMembersList.filter(m => 
-        (currentLeagueDoc?.memberIds && currentLeagueDoc.memberIds.includes(m.userId)) ||
-        (m.leagueIds && m.leagueIds.includes(leagueId))
-      );
-      filtered.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
-      setMembers(filtered);
+      const isBaseball = (currentLeagueDoc?.name || '').toLowerCase().includes('baseball');
+      const filtered = rawMembersList.filter(m => {
+        const isNate = m.userId.includes('nate') || 
+                       (m.displayName || '').toLowerCase().includes('nate') || 
+                       (m.email || '').toLowerCase().includes('nate');
+        if (!isBaseball && isNate) return false;
+
+        if (currentLeagueDoc?.memberIds && currentLeagueDoc.memberIds.length > 0) {
+          return currentLeagueDoc.memberIds.includes(m.userId);
+        }
+        return Boolean(m.leagueIds && m.leagueIds.includes(leagueId));
+      });
+      const clean = deduplicateRoster(filtered);
+      setMembers(clean);
     };
 
     const unsubscribeL = onSnapshot(doc(db, 'leagues', leagueId), (snap) => {

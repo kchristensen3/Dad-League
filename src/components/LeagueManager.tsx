@@ -7,7 +7,7 @@ import { League } from '../types';
 import { autoJoinLeagueWithCode, getStoredInviteCode, getInviteCodeFromUrl, clearPendingInviteCode } from '../lib/inviteUtils';
 import { Plus, Users, ArrowRight, Shield, LayoutGrid, X, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { LEAGUE_ROSTER_DEFS } from '../lib/rosterSync';
+import { LEAGUE_ROSTER_DEFS, deduplicateLeagues } from '../lib/rosterSync';
 
 interface LeagueManagerProps {
   user: User;
@@ -250,7 +250,7 @@ export default function LeagueManager({ user, onLeagueSelected, leagues }: Leagu
             </div>
             
             <div className="grid gap-4">
-              {leagues.map((l) => (
+              {deduplicateLeagues(leagues).map((l) => (
                 <button
                   key={l.id}
                   onClick={() => onLeagueSelected(l.id)}

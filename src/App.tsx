@@ -27,7 +27,7 @@ import {
 import { auth, db } from './lib/firebase';
 import { handleFirestoreError, OperationType } from './lib/firestoreUtils';
 import { Session, Activity, Member, League } from './types';
-import { syncLeaguesAndRosters } from './lib/rosterSync';
+import { syncLeaguesAndRosters, deduplicateLeagues } from './lib/rosterSync';
 import { sendDeviceNotification } from './lib/notificationService';
 import { 
   Calendar as CalendarIcon, 
@@ -267,30 +267,28 @@ export default function App() {
       const allLeagues = snap.docs.map(d => ({ id: d.id, ...d.data() } as League));
       latestLeagues = allLeagues;
 
-      // Desired display order: Detroit Dads, Baseball Crew, Architex, others
-      const orderPriority = (name: string) => {
-        const n = (name || '').toLowerCase();
-        if (n.includes('detroit')) return 1;
-        if (n.includes('baseball')) return 2;
-        if (n.includes('architex')) return 3;
-        return 4;
-      };
-
-      const sorted = [...allLeagues].sort((a, b) => orderPriority(a.name) - orderPriority(b.name));
-      setLeagues(sorted);
+      const cleanLeagues = deduplicateLeagues(allLeagues);
+      setLeagues(cleanLeagues);
 
       // Auto-select:
       setSelectedLeagueId(prevSelected => {
-        const current = sorted.find(l => l.id === prevSelected);
+        const current = cleanLeagues.find(l => l.id === prevSelected);
         if (current) {
           return prevSelected;
         }
-        const detroit = sorted.find(l => l.name.toLowerCase().includes('detroit'));
+        const prevLeague = allLeagues.find(l => l.id === prevSelected);
+        if (prevLeague) {
+          const matchByName = cleanLeagues.find(l => l.name.trim().toLowerCase() === prevLeague.name.trim().toLowerCase());
+          if (matchByName) {
+            return matchByName.id;
+          }
+        }
+        const detroit = cleanLeagues.find(l => l.name.toLowerCase().includes('detroit'));
         if (detroit) {
           return detroit.id;
         }
-        if (sorted.length > 0) {
-          return sorted[0].id;
+        if (cleanLeagues.length > 0) {
+          return cleanLeagues[0].id;
         }
         return null;
       });

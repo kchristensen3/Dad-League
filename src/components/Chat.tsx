@@ -4,6 +4,7 @@ import { collection, addDoc, onSnapshot, doc, serverTimestamp } from 'firebase/f
 import { db } from '../lib/firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 import { Session, Message, Member, League } from '../types';
+import { deduplicateRoster } from '../lib/rosterSync';
 import { 
   Send, 
   AtSign, 
@@ -97,12 +98,19 @@ export default function Chat({
     let rawMembersList: Member[] = [];
 
     const syncChatMembers = () => {
-      const filtered = rawMembersList.filter(m => 
-        (activeLeagueDoc?.memberIds && activeLeagueDoc.memberIds.includes(m.userId)) ||
-        (m.leagueIds && m.leagueIds.includes(leagueId))
-      );
-      filtered.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
-      setMembers(filtered);
+      const isBaseball = (activeLeagueDoc?.name || '').toLowerCase().includes('baseball');
+      const filtered = rawMembersList.filter(m => {
+        const isNate = m.userId.includes('nate') || 
+                       (m.displayName || '').toLowerCase().includes('nate') || 
+                       (m.email || '').toLowerCase().includes('nate');
+        if (!isBaseball && isNate) return false;
+
+        if (activeLeagueDoc?.memberIds && activeLeagueDoc.memberIds.length > 0) {
+          return activeLeagueDoc.memberIds.includes(m.userId);
+        }
+        return Boolean(m.leagueIds && m.leagueIds.includes(leagueId));
+      });
+      setMembers(deduplicateRoster(filtered));
     };
 
     const unsubscribeL = onSnapshot(doc(db, 'leagues', leagueId), (snap) => {

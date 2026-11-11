@@ -5,7 +5,7 @@ import { db } from '../lib/firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 import { Member, League, Session, Activity, Message, Post } from '../types';
 import { getUniversalInviteUrl } from '../lib/inviteUtils';
-import { matchesDadName, LEAGUE_ROSTER_DEFS } from '../lib/rosterSync';
+import { matchesDadName, LEAGUE_ROSTER_DEFS, deduplicateRoster } from '../lib/rosterSync';
 import { 
   Mail, 
   MapPin, 
@@ -114,11 +114,20 @@ export default function Members({ user, leagueId }: { user: User, leagueId: stri
     };
   }, [user, leagueId, isManagingRoster]);
 
-  // Compute members who strictly belong to this league
-  const leagueMembers = allMembers.filter(m => 
-    (league?.memberIds && league.memberIds.includes(m.userId)) ||
-    (m.leagueIds && m.leagueIds.includes(leagueId))
-  );
+  // Compute members who strictly belong to this league, cleanly deduplicated
+  const isBaseballLeague = (league?.name || '').toLowerCase().includes('baseball');
+  const rawLeagueMembers = allMembers.filter(m => {
+    const isNate = m.userId.includes('nate') || 
+                   (m.displayName || '').toLowerCase().includes('nate') || 
+                   (m.email || '').toLowerCase().includes('nate');
+    if (!isBaseballLeague && isNate) return false;
+
+    if (league?.memberIds && league.memberIds.length > 0) {
+      return league.memberIds.includes(m.userId);
+    }
+    return Boolean(m.leagueIds && m.leagueIds.includes(leagueId));
+  });
+  const leagueMembers = deduplicateRoster(rawLeagueMembers);
 
   const inviteUrl = league?.inviteCode ? getUniversalInviteUrl(league.inviteCode) : '';
 
@@ -610,7 +619,15 @@ export default function Members({ user, leagueId }: { user: User, leagueId: stri
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 text-slate-400 font-medium text-xs mt-0.5 truncate">
-                            <Mail size={12} className="shrink-0" /> {member.email}
+                            {member.email && !member.email.toLowerCase().endsWith('@dadleague.app') ? (
+                              <>
+                                <Mail size={12} className="shrink-0" /> {member.email}
+                              </>
+                            ) : (
+                              <span className="text-slate-400 font-medium text-[11px]">
+                                {member.userId.startsWith('dad_') ? 'Pending Invite' : 'League Member'}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -927,7 +944,7 @@ export default function Members({ user, leagueId }: { user: User, leagueId: stri
 
               {/* Members Checklist */}
               <div className="p-4 overflow-y-auto space-y-1.5 flex-1 divide-y divide-slate-100">
-                {allMembers.map(m => {
+                {deduplicateRoster(allMembers).map(m => {
                   const isChecked = selectedUids.includes(m.userId);
                   return (
                     <div

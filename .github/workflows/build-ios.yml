@@ -33,6 +33,7 @@ jobs:
     env:
       HAS_SIGNING: ${{ secrets.APPLE_CERT_P12 != '' && secrets.APPLE_PROVISIONING_PROFILE != '' && secrets.APPLE_TEAM_ID != '' }}
       HAS_UPLOAD: ${{ secrets.APPSTORE_API_KEY_ID != '' && secrets.APPSTORE_API_ISSUER_ID != '' && secrets.APPSTORE_API_KEY_P8 != '' }}
+      HAS_PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -50,7 +51,7 @@ jobs:
         run: npm run build
 
       - name: Write GoogleService-Info.plist
-        if: secrets.GOOGLE_SERVICE_INFO_PLIST != ''
+        if: env.HAS_PLIST == 'true'
         run: |
           echo "${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}" | base64 -d > ios/App/App/GoogleService-Info.plist
           echo "Wrote GoogleService-Info.plist"
@@ -59,7 +60,7 @@ jobs:
         run: npx cap sync ios
 
       - name: Add Google Sign-In URL scheme
-        if: secrets.GOOGLE_SERVICE_INFO_PLIST != ''
+        if: env.HAS_PLIST == 'true'
         run: |
           REVERSED_ID=$(/usr/libexec/PlistBuddy -c "Print :REVERSED_CLIENT_ID" ios/App/App/GoogleService-Info.plist)
           INFO_PLIST="ios/App/App/Info.plist"

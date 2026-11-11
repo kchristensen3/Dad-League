@@ -4,8 +4,11 @@
  */
 
 import { useState, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { 
   signInWithPopup, 
+  signInWithCredential,
   GoogleAuthProvider, 
   onAuthStateChanged, 
   User,
@@ -494,7 +497,19 @@ export default function App() {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     try {
-      await signInWithPopup(auth, provider);
+      if (Capacitor.isNativePlatform()) {
+        // Native iOS/Android: popups don't work in the WebView, so use the
+        // native Google Sign-In flow and bridge the credential to Firebase.
+        const result = await FirebaseAuthentication.signInWithGoogle();
+        const idToken = result.credential?.idToken;
+        if (!idToken) {
+          throw new Error('Native Google Sign-In returned no ID token');
+        }
+        const credential = GoogleAuthProvider.credential(idToken);
+        await signInWithCredential(auth, credential);
+      } else {
+        await signInWithPopup(auth, provider);
+      }
       setShowLoginScreen(false);
     } catch (error) {
       console.error("Login failed:", error);
@@ -504,6 +519,9 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
+      if (Capacitor.isNativePlatform()) {
+        await FirebaseAuthentication.signOut();
+      }
       await signOut(auth);
       setUser(null);
       setMember(null);

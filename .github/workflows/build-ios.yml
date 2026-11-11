@@ -1,0 +1,146 @@
+name: Build iOS (TestFlight)
+
+# Builds Dad League for iOS on a GitHub-hosted Mac — no local Xcode needed.
+# - Every push to main + manual runs.
+# - If signing secrets are set, archives, signs, and uploads to TestFlight.
+# - If they aren't set yet, does an unsigned build as a smoke test.
+#
+# Required GitHub secrets (repo Settings > Secrets and variables > Actions):
+#   GOOGLE_SERVICE_INFO_PLIST   Base64 of GoogleService-Info.plist from the Firebase
+#                               console (register an iOS app, bundle ID com.dadleague.app).
+#                               Needed for native Google Sign-In at runtime.
+#   APPLE_TEAM_ID               Apple Developer Team ID (e.g. ABCDE12345).
+#   APPLE_CERT_P12              Base64 of the .p12 distribution certificate.
+#   APPLE_CERT_PASSWORD         Password for the .p12.
+#   APPLE_PROVISIONING_PROFILE  Base64 of the .mobileprovision App Store profile.
+#   APPLE_PROVISIONING_PROFILE_NAME  Profile name, e.g. "Dad League App Store".
+#   APPSTORE_API_KEY_ID         App Store Connect API key ID.
+#   APPSTORE_API_ISSUER_ID      App Store Connect issuer ID.
+#   APPSTORE_API_KEY_P8         Base64 of the AuthKey_<KEY_ID>.p8 file.
+#
+# NOTE: the ios/ native project is managed in this repo (Capacitor model).
+# Do NOT let AI Studio regenerate ios/ or android/ on export — if it does,
+# restore ios/ from git; the web code is the only thing AI Studio should touch.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-15
+    env:
+      HAS_SIGNING: ${{ secrets.APPLE_CERT_P12 != '' && secrets.APPLE_PROVISIONING_PROFILE != '' && secrets.APPLE_TEAM_ID != '' }}
+      HAS_UPLOAD: ${{ secrets.APPSTORE_API_KEY_ID != '' && secrets.APPSTORE_API_ISSUER_ID != '' && secrets.APPSTORE_API_KEY_P8 != '' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Write GoogleService-Info.plist
+        if: secrets.GOOGLE_SERVICE_INFO_PLIST != ''
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}" | base64 -d > ios/App/App/GoogleService-Info.plist
+          echo "Wrote GoogleService-Info.plist"
+
+      - name: Sync Capacitor iOS project
+        run: npx cap sync ios
+
+      - name: Add Google Sign-In URL scheme
+        if: secrets.GOOGLE_SERVICE_INFO_PLIST != ''
+        run: |
+          REVERSED_ID=$(/usr/libexec/PlistBuddy -c "Print :REVERSED_CLIENT_ID" ios/App/App/GoogleService-Info.plist)
+          INFO_PLIST="ios/App/App/Info.plist"
+          if /usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes" "$INFO_PLIST" 2>/dev/null | grep -q "$REVERSED_ID"; then
+            echo "URL scheme already present"
+          else
+            /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$INFO_PLIST" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" "$INFO_PLIST"
+            /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$INFO_PLIST"
+            /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string $REVERSED_ID" "$INFO_PLIST"
+            echo "Added URL scheme $REVERSED_ID"
+          fi
+
+      # ---- Unsigned smoke test (runs until signing secrets exist) ----
+      - name: Build (unsigned smoke test)
+        if: env.HAS_SIGNING != 'true'
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+
+      # ---- Signed archive + TestFlight upload ----
+      - name: Import signing certificate
+        if: env.HAS_SIGNING == 'true'
+        run: |
+          echo "${{ secrets.APPLE_CERT_P12 }}" | base64 -d > /tmp/cert.p12
+          security create-keychain -p actions build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p actions build.keychain
+          security import /tmp/cert.p12 -k build.keychain -P "${{ secrets.APPLE_CERT_PASSWORD }}" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k actions build.keychain
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "${{ secrets.APPLE_PROVISIONING_PROFILE }}" | base64 -d > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+
+      - name: Archive (signed)
+        if: env.HAS_SIGNING == 'true'
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath $RUNNER_TEMP/App.xcarchive archive \
+            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="${{ secrets.APPLE_PROVISIONING_PROFILE_NAME }}"
+
+      - name: Export IPA
+        if: env.HAS_SIGNING == 'true'
+        run: |
+          cat > /tmp/ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>${{ secrets.APPLE_TEAM_ID }}</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.dadleague.app</key><string>${{ secrets.APPLE_PROVISIONING_PROFILE_NAME }}</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive -archivePath $RUNNER_TEMP/App.xcarchive \
+            -exportPath $RUNNER_TEMP/export -exportOptionsPlist /tmp/ExportOptions.plist
+          ls -la $RUNNER_TEMP/export/
+
+      - name: Upload to TestFlight
+        if: env.HAS_SIGNING == 'true' && env.HAS_UPLOAD == 'true'
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "${{ secrets.APPSTORE_API_KEY_P8 }}" | base64 -d > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPSTORE_API_KEY_ID }}.p8
+          IPA=$(ls $RUNNER_TEMP/export/*.ipa | head -1)
+          xcrun altool --upload-app --type ios --file "$IPA" \
+            --apiKey "${{ secrets.APPSTORE_API_KEY_ID }}" \
+            --apiIssuer "${{ secrets.APPSTORE_API_ISSUER_ID }}"
+
+      - name: Upload IPA artifact
+        if: env.HAS_SIGNING == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DadLeague-ipa
+          path: ${{ runner.temp }}/export/*.ipa
+          if-no-files-found: warn

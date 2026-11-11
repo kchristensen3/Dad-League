@@ -79,7 +79,7 @@ jobs:
         if: env.HAS_SIGNING != 'true'
         run: |
           cd ios/App
-          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release \
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release \
             -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
 
       # ---- Signed archive + TestFlight upload ----
@@ -99,7 +99,7 @@ jobs:
         if: env.HAS_SIGNING == 'true'
         run: |
           cd ios/App
-          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release \
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath $RUNNER_TEMP/App.xcarchive archive \
             DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \

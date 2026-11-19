@@ -37,7 +37,7 @@ const del = <T>(p: string) => request<T>("DELETE", p);
 const L = (leagueId: string) => `/api/leagues/${leagueId}`;
 
 export const api = {
-  authConfig: () => get<{ google: boolean; devLogin: boolean }>("/auth/config"),
+  authConfig: () => get<{ google: boolean; apple: boolean; devLogin: boolean }>("/auth/config"),
   devLogin: (email: string, name?: string) => post("/auth/dev", { email, name }),
   logout: () => post("/auth/logout"),
 

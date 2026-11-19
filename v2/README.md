@@ -26,7 +26,7 @@ Hono on Node 22  ── Drizzle ──►  Postgres
 |---|---|---|
 | Data | Firestore, arrays inside documents, 9 KB of security rules | Postgres with real relations, FKs and cascades |
 | Authorization | Firestore rules + client code | Server-side checks on every route (`requireMembership`, `canModify`) |
-| Auth | Firebase Auth (+ native plugin) | Google OAuth (arctic) + httpOnly session cookie |
+| Auth | Firebase Auth (+ native plugin) | Sign in with Apple and Google (arctic) + httpOnly session cookie; accounts link by verified email |
 | Realtime | Firestore listeners | SSE + Postgres LISTEN/NOTIFY |
 | AI | Gemini helper that no screen used; Vite bakes its key into the client bundle | Claude on the Ideas tab, server-only, schema-validated output |
 | Notifications | Local `Notification` while the tab is open | Web Push (works when the app is closed, incl. iOS home-screen apps) |
@@ -59,11 +59,32 @@ npm run dev                   # http://localhost:5173
    - `DATABASE_URL` = `${{Postgres.DATABASE_URL}}`
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — from Google Cloud Console → Credentials → OAuth client (Web).
      Authorized redirect URI: `https://<your-domain>/auth/google/callback`
+   - `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` — optional, enables Sign in with Apple (see below)
    - `ANTHROPIC_API_KEY` — optional, enables "Suggest" on the Ideas tab
    - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` — optional, from `npx web-push generate-vapid-keys`
    - `APP_URL` — only if you add a custom domain (otherwise it uses Railway's domain)
 5. Deploy. `railway.json` builds the Dockerfile, runs migrations as the pre-deploy step, and health-checks `/healthz`.
    Every push to the deploy branch redeploys; a failed migration or health check leaves the previous version running.
+
+### Setting up Sign in with Apple
+
+Needs a paid Apple Developer account. Apple only allows real HTTPS domains, so it can't be tried on localhost;
+set it up once the Railway domain exists. In [developer.apple.com](https://developer.apple.com/account/resources) →
+Certificates, Identifiers & Profiles:
+
+1. **Identifiers → App IDs → +**: create one (e.g. `com.yourname.dadleague`) with **Sign in with Apple** checked.
+2. **Identifiers → Services IDs → +**: create one (e.g. `com.yourname.dadleague.web`). This is `APPLE_CLIENT_ID`.
+   Enable **Sign in with Apple → Configure**, pick the App ID from step 1, and add:
+   - Domain: `<your-domain>` (no `https://`)
+   - Return URL: `https://<your-domain>/auth/apple/callback`
+3. **Keys → +**: enable **Sign in with Apple**, configure it with the same App ID, and download the `.p8` file
+   (you can only download it once). Its Key ID is `APPLE_KEY_ID`; paste the file's contents as `APPLE_PRIVATE_KEY`.
+4. `APPLE_TEAM_ID` is shown at the top right of the developer portal.
+
+How accounts fit together: someone who signs in with Google and later with Apple using the same email lands in the
+same account. If they choose Apple's **Hide My Email**, Apple gives us a relay address instead, so that becomes a
+separate account. Apple shares the person's name only the first time; if they decline, they show up as
+"New member" until they edit their profile.
 
 **PR environments:** turn them on under Project Settings → Environments and each PR gets its own URL and
 database, which pairs well with having Claude Code open PRs.

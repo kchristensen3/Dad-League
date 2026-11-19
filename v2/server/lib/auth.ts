@@ -67,7 +67,8 @@ export const requireUser: MiddlewareHandler<AppEnv> = async (c, next) => {
  * cross-site POST/PATCH/DELETE, so reject any that don't match our own origin.
  */
 export const sameOriginWrites: MiddlewareHandler = async (c, next) => {
-  if (!["GET", "HEAD", "OPTIONS"].includes(c.req.method)) {
+  // Apple's sign-in response is a cross-site form POST by design; that route checks its own state token.
+  if (!["GET", "HEAD", "OPTIONS"].includes(c.req.method) && c.req.path !== "/auth/apple/callback") {
     const origin = c.req.header("origin");
     if (origin && origin !== new URL(c.req.url).origin && origin !== env.appUrl) {
       throw new HTTPException(403, { message: "Cross-origin request blocked" });

@@ -8,6 +8,13 @@
       "when": 1795109781150,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795113904757,
+      "tag": "0001_apple_sign_in",
+      "breakpoints": true
     }
   ]
 }

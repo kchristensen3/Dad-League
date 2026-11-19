@@ -5,7 +5,7 @@ import { api } from "../api";
 import { Logo } from "../components/Brand";
 import { Button, Card, ErrorNote, Spinner } from "../components/ui";
 import { useMe } from "../hooks";
-import { DevLogin, GoogleButton } from "./Login";
+import { SignInOptions } from "./Login";
 
 /** Invite landing page: shows the league, signs you in if needed, then joins in one tap. */
 export default function Join() {
@@ -14,7 +14,6 @@ export default function Join() {
   const qc = useQueryClient();
   const { data: me, isLoading } = useMe();
   const invite = useQuery({ queryKey: ["invite", code], queryFn: () => api.invite(code) });
-  const config = useQuery({ queryKey: ["authConfig"], queryFn: api.authConfig, enabled: !me });
   const join = useMutation({
     mutationFn: () => api.joinLeague(code),
     onSuccess: ({ league }) => {
@@ -52,9 +51,8 @@ export default function Join() {
                 </Button>
               </>
             ) : (
-              <div className="space-y-3 text-left">
-                {config.data?.google && <GoogleButton returnTo={`/join/${code}`} />}
-                {config.data?.devLogin && <DevLogin onDone={() => qc.invalidateQueries({ queryKey: ["me"] })} />}
+              <div className="text-left">
+                <SignInOptions returnTo={`/join/${code}`} onDevLogin={() => qc.invalidateQueries({ queryKey: ["me"] })} />
               </div>
             )}
           </>

@@ -11,6 +11,7 @@ const ERRORS: Record<string, string> = {
   state: "Sign-in timed out. Please try again.",
   email: "Your Google account needs a verified email.",
   google: "Google sign-in failed. Please try again.",
+  apple: "Sign in with Apple failed. Please try again.",
 };
 
 export function GoogleButton({ returnTo }: { returnTo: string }) {
@@ -27,6 +28,37 @@ export function GoogleButton({ returnTo }: { returnTo: string }) {
       </svg>
       Continue with Google
     </a>
+  );
+}
+
+export function AppleButton({ returnTo }: { returnTo: string }) {
+  return (
+    <a
+      href={`/auth/apple?returnTo=${encodeURIComponent(returnTo)}`}
+      className="flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+    >
+      <svg width="16" height="18" viewBox="0 0 814 1000" aria-hidden fill="currentColor">
+        <path d="M788 341c-6 4-108 62-108 190 0 149 131 202 135 203-1 3-21 72-69 142-43 62-88 124-157 124s-87-40-166-40c-77 0-105 41-168 41s-107-57-158-128C38 790 0 662 0 541c0-196 127-299 253-299 66 0 122 44 164 44 40 0 102-46 178-46 29 0 132 2 193 101zM554 158c31-37 53-88 53-139 0-7-1-14-2-19-51 2-111 34-147 76-28 32-55 83-55 135 0 8 1 16 2 18 3 1 9 2 14 2 46 0 103-31 135-73z" />
+      </svg>
+      Continue with Apple
+    </a>
+  );
+}
+
+/** Every sign-in option the server has configured. */
+export function SignInOptions({ returnTo, onDevLogin }: { returnTo: string; onDevLogin: () => void }) {
+  const config = useQuery({ queryKey: ["authConfig"], queryFn: api.authConfig });
+  if (!config.data) return <Spinner className="py-4" />;
+  const { apple, google, devLogin } = config.data;
+  return (
+    <div className="space-y-3">
+      {apple && <AppleButton returnTo={returnTo} />}
+      {google && <GoogleButton returnTo={returnTo} />}
+      {devLogin && <DevLogin onDone={onDevLogin} />}
+      {!apple && !google && !devLogin && (
+        <ErrorNote error="No sign-in method is configured. Set the Google and/or Apple variables on the server." />
+      )}
+    </div>
   );
 }
 
@@ -58,7 +90,6 @@ export default function Login() {
   const returnTo = params.get("returnTo") ?? "/";
   const qc = useQueryClient();
   const { data: me, isLoading } = useMe();
-  const config = useQuery({ queryKey: ["authConfig"], queryFn: api.authConfig });
 
   if (isLoading) return <Spinner className="pt-32" />;
   if (me) return <Navigate to={returnTo.startsWith("/") ? returnTo : "/"} replace />;
@@ -78,11 +109,7 @@ export default function Login() {
             <li className="flex gap-3"><MessagesSquare className="shrink-0 text-emerald-600" size={20} /> One group chat, plus a thread per event</li>
           </ul>
           {params.get("error") && <ErrorNote error={ERRORS[params.get("error")!] ?? "Sign-in failed."} />}
-          {config.data?.google && <GoogleButton returnTo={returnTo} />}
-          {config.data?.devLogin && <DevLogin onDone={() => qc.invalidateQueries({ queryKey: ["me"] })} />}
-          {config.data && !config.data.google && !config.data.devLogin && (
-            <ErrorNote error="No sign-in method is configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET." />
-          )}
+          <SignInOptions returnTo={returnTo} onDevLogin={() => qc.invalidateQueries({ queryKey: ["me"] })} />
         </Card>
         <p className="text-center text-xs text-slate-400">
           By continuing you agree to the <a className="underline" href="/terms.html">Terms</a> and{" "}

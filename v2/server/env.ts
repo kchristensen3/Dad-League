@@ -9,6 +9,11 @@ const schema = z.object({
   RAILWAY_PUBLIC_DOMAIN: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  /** Sign in with Apple: the Services ID (not the App ID), Team ID, and the Sign in with Apple key (.p8). */
+  APPLE_CLIENT_ID: z.string().optional(),
+  APPLE_TEAM_ID: z.string().optional(),
+  APPLE_KEY_ID: z.string().optional(),
+  APPLE_PRIVATE_KEY: z.string().optional(),
   /** Enables the email-only sign-in form. Never set this in production. */
   DEV_LOGIN: z.stringbool().default(false),
   ANTHROPIC_API_KEY: z.string().optional(),
@@ -28,6 +33,7 @@ export const env = {
       : `http://localhost:${parsed.NODE_ENV === "production" ? parsed.PORT : 5173}`),
   isProd: parsed.NODE_ENV === "production",
   googleEnabled: Boolean(parsed.GOOGLE_CLIENT_ID && parsed.GOOGLE_CLIENT_SECRET),
+  appleEnabled: Boolean(parsed.APPLE_CLIENT_ID && parsed.APPLE_TEAM_ID && parsed.APPLE_KEY_ID && parsed.APPLE_PRIVATE_KEY),
   aiEnabled: Boolean(parsed.ANTHROPIC_API_KEY),
   pushEnabled: Boolean(parsed.VAPID_PUBLIC_KEY && parsed.VAPID_PRIVATE_KEY),
 };

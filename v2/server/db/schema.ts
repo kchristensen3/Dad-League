@@ -17,6 +17,7 @@ const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull(
 export const users = pgTable("users", {
   id: id(),
   googleSub: text("google_sub").unique(),
+  appleSub: text("apple_sub").unique(),
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   avatarUrl: text("avatar_url"),

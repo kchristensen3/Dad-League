@@ -33,5 +33,10 @@ Deployed on Railway as one service plus a Postgres database.
 - Claude calls live in `server/lib/ai.ts` only. Model: `claude-opus-5-5`, structured output via zod.
 - Keep the UI mobile-first; most people use it as an installed PWA on their phone.
 
+## Auth
+Sign in with Apple and Google via arctic (`server/routes/auth.ts`); both go through `signInWithProvider`, which matches on
+the provider's account id, then verified email. Apple's callback is a cross-site form POST, so it is exempt from the
+Origin check in `sameOriginWrites` and its state cookie is `SameSite=None; Secure`. Don't "fix" either.
+
 ## Env
 See `.env.example`. `DEV_LOGIN=true` enables email-only sign-in for local dev and tests and is rejected in production.

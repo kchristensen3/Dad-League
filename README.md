@@ -18,3 +18,10 @@ View your app in AI Studio: https://ai.studio/apps/58f40d57-a77c-4b62-b232-af55a
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+---
+
+## v2
+
+A full rebuild for Railway (Node + Postgres, Claude for AI suggestions, set up for working with Claude Code) lives in
+[`v2/`](v2/README.md). It's independent of the app above.

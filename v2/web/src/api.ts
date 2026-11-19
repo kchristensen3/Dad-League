@@ -1,0 +1,123 @@
+import type {
+  ChatMessage,
+  Comment,
+  EventItem,
+  Idea,
+  IdeaSuggestion,
+  LeagueSummary,
+  Me,
+  Member,
+  Post,
+} from "../../shared/schemas";
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method,
+    credentials: "same-origin",
+    headers: body === undefined ? {} : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(res.status, (data as { error?: string }).error ?? `Request failed (${res.status})`);
+  return data as T;
+}
+
+const get = <T>(p: string) => request<T>("GET", p);
+const post = <T>(p: string, b: unknown = {}) => request<T>("POST", p, b);
+const patch = <T>(p: string, b: unknown) => request<T>("PATCH", p, b);
+const put = <T>(p: string, b: unknown = {}) => request<T>("PUT", p, b);
+const del = <T>(p: string) => request<T>("DELETE", p);
+
+const L = (leagueId: string) => `/api/leagues/${leagueId}`;
+
+export const api = {
+  authConfig: () => get<{ google: boolean; devLogin: boolean }>("/auth/config"),
+  devLogin: (email: string, name?: string) => post("/auth/dev", { email, name }),
+  logout: () => post("/auth/logout"),
+
+  me: () => get<{ user: Me | null }>("/api/me").then((r) => r.user),
+  updateMe: (body: Partial<Pick<Me, "name" | "location" | "availability" | "interests" | "notificationPrefs">>) =>
+    patch<{ user: Me }>("/api/me", body).then((r) => r.user),
+  deleteMe: () => del("/api/me"),
+  pushConfig: () => get<{ enabled: boolean; publicKey: string | null }>("/api/me/push"),
+  savePushSubscription: (sub: PushSubscriptionJSON) => post("/api/me/push", sub),
+
+  invite: (code: string) =>
+    get<{ invite: { name: string; description: string; memberCount: number } }>(`/api/invites/${encodeURIComponent(code)}`).then(
+      (r) => r.invite,
+    ),
+  leagues: () => get<{ leagues: LeagueSummary[] }>("/api/leagues").then((r) => r.leagues),
+  league: (id: string) => get<{ league: LeagueSummary }>(L(id)).then((r) => r.league),
+  createLeague: (body: { name: string; description: string }) =>
+    post<{ league: LeagueSummary }>("/api/leagues", body).then((r) => r.league),
+  joinLeague: (code: string) =>
+    post<{ league: LeagueSummary; alreadyMember: boolean }>("/api/leagues/join", { code }),
+  updateLeague: (id: string, body: { name?: string; description?: string }) =>
+    patch<{ league: LeagueSummary }>(L(id), body).then((r) => r.league),
+  rotateInvite: (id: string) => post<{ league: LeagueSummary }>(`${L(id)}/invite-code`).then((r) => r.league),
+  deleteLeague: (id: string) => del(L(id)),
+  members: (id: string) => get<{ members: Member[] }>(`${L(id)}/members`).then((r) => r.members),
+  removeMember: (id: string, userId: string) => del(`${L(id)}/members/${userId}`),
+  transferOwnership: (id: string, userId: string) => post(`${L(id)}/owner`, { userId }),
+
+  ideas: (id: string, archived = false) =>
+    get<{ ideas: Idea[] }>(`${L(id)}/ideas${archived ? "?archived=true" : ""}`).then((r) => r.ideas),
+  createIdea: (id: string, body: Pick<Idea, "title" | "description" | "category" | "location"> & { aiSuggested?: boolean }) =>
+    post<{ idea: Idea }>(`${L(id)}/ideas`, body).then((r) => r.idea),
+  updateIdea: (id: string, ideaId: string, body: Partial<Pick<Idea, "title" | "description" | "category" | "location" | "archived">>) =>
+    patch<{ idea: Idea }>(`${L(id)}/ideas/${ideaId}`, body).then((r) => r.idea),
+  deleteIdea: (id: string, ideaId: string) => del(`${L(id)}/ideas/${ideaId}`),
+  vote: (id: string, ideaId: string, on: boolean) =>
+    on ? put(`${L(id)}/ideas/${ideaId}/vote`) : del(`${L(id)}/ideas/${ideaId}/vote`),
+  suggestIdeas: (id: string, request?: string) =>
+    post<{ suggestions: IdeaSuggestion[] }>(`${L(id)}/ideas/suggest`, { request }).then((r) => r.suggestions),
+
+  events: (id: string, scope: "upcoming" | "past" = "upcoming") =>
+    get<{ events: EventItem[] }>(`${L(id)}/events?scope=${scope}`).then((r) => r.events),
+  event: (id: string, eventId: string) => get<{ event: EventItem }>(`${L(id)}/events/${eventId}`).then((r) => r.event),
+  createEvent: (id: string, body: EventInput & { ideaId?: string | null }) =>
+    post<{ event: EventItem }>(`${L(id)}/events`, body).then((r) => r.event),
+  updateEvent: (id: string, eventId: string, body: Partial<EventInput> & { cancelled?: boolean }) =>
+    patch<{ event: EventItem }>(`${L(id)}/events/${eventId}`, body).then((r) => r.event),
+  deleteEvent: (id: string, eventId: string) => del(`${L(id)}/events/${eventId}`),
+  rsvp: (id: string, eventId: string, status: "going" | "not_going" | null) =>
+    put<{ event: EventItem }>(`${L(id)}/events/${eventId}/rsvp`, { status }).then((r) => r.event),
+
+  posts: (id: string, before?: string) =>
+    get<{ posts: Post[]; nextCursor: string | null }>(`${L(id)}/posts${before ? `?before=${encodeURIComponent(before)}` : ""}`),
+  createPost: (id: string, body: { title: string; body: string; linkUrl: string | null }) =>
+    post<{ post: Post }>(`${L(id)}/posts`, body).then((r) => r.post),
+  deletePost: (id: string, postId: string) => del(`${L(id)}/posts/${postId}`),
+  like: (id: string, postId: string, on: boolean) =>
+    on ? put(`${L(id)}/posts/${postId}/like`) : del(`${L(id)}/posts/${postId}/like`),
+  comments: (id: string, postId: string) =>
+    get<{ comments: Comment[] }>(`${L(id)}/posts/${postId}/comments`).then((r) => r.comments),
+  addComment: (id: string, postId: string, body: string) =>
+    post<{ comment: Comment }>(`${L(id)}/posts/${postId}/comments`, { body }).then((r) => r.comment),
+  deleteComment: (id: string, postId: string, commentId: string) => del(`${L(id)}/posts/${postId}/comments/${commentId}`),
+
+  messages: (id: string, eventId?: string | null, before?: string) => {
+    const q = new URLSearchParams();
+    if (eventId) q.set("eventId", eventId);
+    if (before) q.set("before", before);
+    return get<{ messages: ChatMessage[]; hasMore: boolean }>(`${L(id)}/messages?${q}`);
+  },
+  sendMessage: (id: string, body: string, eventId?: string | null) =>
+    post<{ message: ChatMessage }>(`${L(id)}/messages`, { body, eventId: eventId ?? null }).then((r) => r.message),
+  deleteMessage: (id: string, messageId: string) => del(`${L(id)}/messages/${messageId}`),
+};
+
+export interface EventInput {
+  title: string;
+  category: EventItem["category"];
+  description: string;
+  location: string | null;
+  url: string | null;
+  startsAt: string;
+}

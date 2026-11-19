@@ -1,0 +1,37 @@
+# Dad League v2
+
+A small social app for groups of dads ("leagues"): plan events and RSVP, pitch and vote on
+ideas (with Claude suggestions), a link board, and group chat with per-event threads.
+Deployed on Railway as one service plus a Postgres database.
+
+## Layout
+- `server/` Hono API on Node 22. `app.ts` wires routes; `index.ts` is the entrypoint (also serves the built SPA in production).
+  - `db/schema.ts` Drizzle schema (source of truth). `db/migrations/` generated SQL, committed.
+  - `routes/` one file per resource. League-scoped routers come from `scopedRouter()` in `routes/scope.ts`,
+    which guarantees `c.var.user`, `c.var.leagueId`, `c.var.membership`.
+  - `lib/` auth (cookie sessions), access checks, realtime (Postgres LISTEN/NOTIFY → SSE), AI, push, link previews.
+  - `test/` Vitest integration tests that hit the real app against a real Postgres.
+- `shared/schemas.ts` zod request schemas + response types used by both server and web. Change API shapes here first.
+- `web/` React 19 + Vite + Tailwind v4 + TanStack Query + React Router SPA.
+
+## Commands
+- `npm run dev` — API on :3000 and Vite on :5173 (proxying /api and /auth). Needs Postgres and `.env` (see `.env.example`).
+- `npm run check` — typecheck server + web, then run tests. Run this before you say something works.
+- `npm run db:generate -- --name <what_changed>` — after editing `db/schema.ts`. Commit the generated SQL.
+- `npm run db:migrate` — apply migrations locally. Railway runs `node dist/server/db/migrate.js` pre-deploy.
+- Tests need a Postgres at `TEST_DATABASE_URL` (default `postgres://postgres:postgres@localhost:5432/dadleague_test`); the schema is dropped and rebuilt each run.
+
+## Conventions
+- Every write that other members should see calls `publish({ leagueId, kind })`. The client maps `kind` to
+  query keys in `web/src/hooks.ts` (`useLeagueStream`). Adding a new resource means adding a kind in both places.
+- Query keys are `[resource, leagueId, ...]` so a league's data can be invalidated by prefix.
+- Authorization: members can read everything in their league; authors edit their own things; the league owner can
+  moderate anything (`canModify`). Non-members get 404, not 403.
+- Validate every body with a schema from `shared/schemas.ts` via `parseBody`. Never trust route params: use `uuidParam`.
+- Never edit an applied migration; generate a new one.
+- Push notifications go through `notifyLeague` and are fire-and-forget (`void`), never awaited in a request.
+- Claude calls live in `server/lib/ai.ts` only. Model: `claude-opus-5-5`, structured output via zod.
+- Keep the UI mobile-first; most people use it as an installed PWA on their phone.
+
+## Env
+See `.env.example`. `DEV_LOGIN=true` enables email-only sign-in for local dev and tests and is rejected in production.

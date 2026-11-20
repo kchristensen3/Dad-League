@@ -8,6 +8,7 @@ import { createApp } from "./app.js";
 import { runMigrations } from "./db/migrate.js";
 import { pruneExpiredSessions } from "./lib/auth.js";
 import { startRealtime } from "./lib/realtime.js";
+import { startScheduler } from "./lib/scheduler.js";
 
 const app = createApp();
 
@@ -21,7 +22,7 @@ if (env.isProd) {
 }
 
 console.log(
-  `Config: url=${env.appUrl} google=${env.googleEnabled} apple=${env.appleEnabled} ai=${env.aiEnabled} push=${env.pushEnabled}`,
+  `Config: url=${env.appUrl} google=${env.googleEnabled} apple=${env.appleEnabled} ai=${env.aiEnabled} push=${env.pushEnabled} photos=${env.s3Enabled ? "bucket" : env.photosEnabled ? "local" : "off"} scheduler=${env.schedulerEnabled}`,
 );
 // Fail fast with a readable message if the database is unreachable, instead of hanging.
 try {
@@ -50,6 +51,7 @@ try {
   process.exit(1);
 }
 void startRealtime();
+const stopScheduler = startScheduler();
 const server = serve({ fetch: app.fetch, port: env.PORT, hostname: "0.0.0.0" }, (info) =>
   console.log(`Dad League listening on :${info.port} (${env.NODE_ENV})`),
 );
@@ -60,6 +62,7 @@ const pruner = setInterval(() => void pruneExpiredSessions().catch(() => {}), 6 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.once(signal, () => {
     clearInterval(pruner);
+    stopScheduler();
     server.close(() => void sql.end({ timeout: 5 }).finally(() => process.exit(0)));
     setTimeout(() => process.exit(0), 10_000).unref();
   });

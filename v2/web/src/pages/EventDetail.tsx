@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ArrowLeft, CalendarPlus, ExternalLink, MapPin, MoreHorizontal, Pencil, Trash2, XCircle } from "lucide-react";
+import { ArrowLeft, CalendarPlus, ExternalLink, MapPin, Mic, MoreHorizontal, Pencil, Repeat, Trash2, XCircle } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import type { EventItem } from "../../../shared/schemas";
@@ -9,8 +9,44 @@ import { ChatThread } from "../components/ChatThread";
 import { DateTile, RsvpButtons, whenLabel } from "../components/EventCard";
 import { CATEGORY_STYLE } from "../fx";
 import { EventForm } from "../components/EventForm";
-import { Avatar, Card, ErrorNote, Pill, Spinner } from "../components/ui";
-import { useDocumentTitle, useLeague, useLeagueId, useMe } from "../hooks";
+import { PhotoSection } from "../components/Photos";
+import { Avatar, Card, ErrorNote, Pill, Sheet, Spinner } from "../components/ui";
+import { useDocumentTitle, useLeague, useLeagueId, useMe, useMembers } from "../hooks";
+
+function HandOff({ leagueId, event, onClose }: { leagueId: string; event: EventItem; onClose: () => void }) {
+  const qc = useQueryClient();
+  const members = useMembers(leagueId);
+  const m = useMutation({
+    mutationFn: (userId: string) => api.handOffHost(leagueId, event.id, userId),
+    onSuccess: (e) => {
+      qc.setQueryData(["event", leagueId, event.id], e);
+      void qc.invalidateQueries({ queryKey: ["events", leagueId] });
+      onClose();
+    },
+  });
+  return (
+    <Sheet open onClose={onClose} title="Hand off hosting">
+      <p className="mb-3 text-sm text-slate-500">Can't make it, or someone else wants to run point? They'll get a heads-up.</p>
+      <ul className="divide-y divide-slate-100">
+        {members.data
+          ?.filter((p) => p.id !== event.host.id)
+          .map((p) => (
+            <li key={p.id}>
+              <button
+                disabled={m.isPending}
+                onClick={() => m.mutate(p.id)}
+                className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left hover:bg-slate-50"
+              >
+                <Avatar user={p} size={32} /> <span className="flex-1 font-medium">{p.name}</span>
+                <span className="text-xs font-semibold text-brand-600">Make host</span>
+              </button>
+            </li>
+          ))}
+      </ul>
+      <ErrorNote error={m.error} />
+    </Sheet>
+  );
+}
 
 /** Builds a one-event .ics file so people can add it to their own calendar. */
 function icsHref(e: EventItem) {
@@ -47,6 +83,7 @@ export default function EventDetail() {
   const league = useLeague(leagueId);
   const [editing, setEditing] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [handingOff, setHandingOff] = useState(false);
   const q = useQuery({ queryKey: ["event", leagueId, eventId], queryFn: () => api.event(leagueId, eventId) });
   useDocumentTitle(q.data?.title ?? "Event");
 
@@ -87,6 +124,9 @@ export default function EventDetail() {
                   <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 hover:bg-slate-50" onClick={() => (setMenu(false), setEditing(true))}>
                     <Pencil size={16} /> Edit details
                   </button>
+                  <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 hover:bg-slate-50" onClick={() => (setMenu(false), setHandingOff(true))}>
+                    <Mic size={16} /> Hand off hosting
+                  </button>
                   <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 hover:bg-slate-50" onClick={() => (setMenu(false), cancel.mutate(!e.cancelled))}>
                     <XCircle size={16} /> {e.cancelled ? "Un-cancel" : "Cancel event"}
                   </button>
@@ -115,6 +155,11 @@ export default function EventDetail() {
                 {CATEGORY_STYLE[e.category].emoji} {e.category}
               </Pill>
               {e.cancelled && <Pill className="bg-red-50 text-red-600">Cancelled</Pill>}
+              {e.series && (
+                <Pill className="bg-brand-50 text-brand-700">
+                  <Repeat size={11} /> {e.series.label}
+                </Pill>
+              )}
             </div>
             <h1 className={`text-2xl font-black leading-tight tracking-tight ${e.cancelled ? "line-through opacity-60" : ""}`}>{e.title}</h1>
             <p className="font-semibold text-brand-600">{whenLabel(e.startsAt)}</p>
@@ -174,12 +219,15 @@ export default function EventDetail() {
         </div>
       </Card>
 
+      {!e.cancelled && <PhotoSection leagueId={leagueId} eventId={e.id} eventStarted={new Date(e.startsAt).getTime() < Date.now()} />}
+
       <section className="space-y-2">
         <h2 className="px-1 text-xs font-bold uppercase tracking-wider text-slate-400">Event chat</h2>
         <ChatThread leagueId={leagueId} eventId={e.id} className="max-h-[60vh] min-h-64" />
       </section>
 
       {editing && <EventForm leagueId={leagueId} open existing={e} onClose={() => setEditing(false)} />}
+      {handingOff && <HandOff leagueId={leagueId} event={e} onClose={() => setHandingOff(false)} />}
     </div>
   );
 }

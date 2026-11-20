@@ -5,6 +5,7 @@ import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
 import { type AppEnv, type SessionUser, destroySession, getSessionUser, requireUser } from "../lib/auth.js";
 import { iso, parseBody } from "../lib/http.js";
+import { deletePhotoFiles } from "../lib/storage.js";
 
 export const toMe = (u: SessionUser): Me => ({
   id: u.id,
@@ -37,6 +38,7 @@ export const meRoutes = new Hono<AppEnv>()
 
   .delete("/", requireUser, async (c) => {
     const userId = c.var.user.id;
+    await deletePhotoFiles({ uploaderId: userId });
     await db.transaction(async (tx) => {
       // Hand each owned league to its longest-standing other member; delete leagues left empty.
       const owned = await tx.select().from(schema.leagues).where(eq(schema.leagues.ownerId, userId));

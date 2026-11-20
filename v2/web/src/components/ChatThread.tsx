@@ -1,10 +1,12 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, isSameDay, isToday, isYesterday } from "date-fns";
-import { Send, Trash2 } from "lucide-react";
+import { CalendarPlus, Check, Send, Trash2 } from "lucide-react";
 import { motion } from "motion/react";
+import { Link, useNavigate } from "react-router";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage, Member } from "../../../shared/schemas";
 import { api } from "../api";
+import { CATEGORY_STYLE, celebrate } from "../fx";
 import { useMe, useMembers } from "../hooks";
 import { Avatar, RichText, Spinner, cx } from "./ui";
 
@@ -29,6 +31,74 @@ function MentionMenu({ members, query, onPick }: { members: Member[]; query: str
         </button>
       ))}
     </div>
+  );
+}
+
+/** A weekly note from Claude, with a one-tap "put it on the calendar" card when it pitches a plan. */
+function CommissionerNote({ leagueId, message }: { leagueId: string; message: ChatMessage }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const btn = useRef<HTMLButtonElement>(null);
+  const p = message.proposal;
+  const accept = useMutation({
+    mutationFn: () => api.acceptProposal(leagueId, message.id),
+    onSuccess: (r) => {
+      celebrate(btn.current, "big");
+      void qc.invalidateQueries({ queryKey: ["messages", leagueId] });
+      void qc.invalidateQueries({ queryKey: ["events", leagueId] });
+      setTimeout(() => navigate(`/l/${leagueId}/events/${r.eventId}`), 700);
+    },
+  });
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="my-3 flex gap-2">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-400 to-accent-500 text-base shadow ring-2 ring-white" aria-hidden>
+        🏆
+      </div>
+      <div className="min-w-0 max-w-[85%] space-y-2">
+        <p className="ml-1 text-[11px] font-black uppercase tracking-wider text-accent-500">
+          The Commissioner <span className="font-semibold normal-case tracking-normal text-slate-400">· weekly note</span>
+        </p>
+        <div className="rounded-2xl rounded-tl-md bg-gradient-to-br from-amber-50 to-white px-3.5 py-2.5 text-[15px] leading-snug text-slate-800 ring-1 ring-amber-200">
+          <RichText text={message.body} />
+        </div>
+        {p && (
+          <div className="overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200">
+            <div className="flex items-center gap-3 p-3">
+              <span className="text-2xl" aria-hidden>
+                {CATEGORY_STYLE[p.category].emoji}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">The pitch</p>
+                <p className="truncate font-bold">{p.title}</p>
+                <p className="truncate text-xs text-slate-500">
+                  {format(new Date(p.startsAt), "EEE, MMM d · h:mm a")}
+                  {p.location ? ` · ${p.location}` : ""}
+                </p>
+              </div>
+            </div>
+            {p.acceptedEventId ? (
+              <Link
+                to={`/l/${leagueId}/events/${p.acceptedEventId}`}
+                className="flex items-center justify-center gap-1 border-t border-slate-100 bg-emerald-50 py-2 text-sm font-semibold text-emerald-700"
+              >
+                <Check size={15} /> On the calendar. See who's in
+              </Link>
+            ) : (
+              <motion.button
+                ref={btn}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => accept.mutate()}
+                disabled={accept.isPending}
+                className="flex w-full items-center justify-center gap-1.5 border-t border-slate-100 bg-brand-500 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+              >
+                <CalendarPlus size={16} /> {accept.isPending ? "Adding…" : "Put it on the calendar (you host)"}
+              </motion.button>
+            )}
+            {accept.error && <p className="px-3 pb-2 text-xs text-red-600">{(accept.error as Error).message}</p>}
+          </div>
+        )}
+      </div>
+    </motion.div>
   );
 }
 
@@ -120,8 +190,18 @@ export function ChatThread({ leagueId, eventId, className }: { leagueId: string;
           const prev = messages[i - 1];
           const d = new Date(m.createdAt);
           const newDay = !prev || !isSameDay(new Date(prev.createdAt), d);
-          const grouped = !newDay && prev?.author.id === m.author.id && d.getTime() - new Date(prev.createdAt).getTime() < 5 * 60_000;
-          const mine = m.author.id === me?.id;
+          if (m.kind === "commissioner" || !m.author) {
+            return (
+              <div key={m.id}>
+                {newDay && <p className="py-3 text-center text-[11px] font-bold uppercase tracking-wider text-slate-400">{dayLabel(d)}</p>}
+                <CommissionerNote leagueId={leagueId} message={m} />
+              </div>
+            );
+          }
+          const author = m.author;
+          const grouped =
+            !newDay && prev?.author?.id === author.id && prev.kind === "user" && d.getTime() - new Date(prev.createdAt).getTime() < 5 * 60_000;
+          const mine = author.id === me?.id;
           return (
             <div key={m.id}>
               {newDay && (
@@ -134,9 +214,9 @@ export function ChatThread({ leagueId, eventId, className }: { leagueId: string;
                 style={{ transformOrigin: mine ? "bottom right" : "bottom left" }}
                 className={cx("group flex items-end gap-2", mine && "flex-row-reverse", !grouped && "mt-2")}
               >
-                <div className="w-7 shrink-0">{!grouped && !mine && <Avatar user={m.author} size={28} />}</div>
+                <div className="w-7 shrink-0">{!grouped && !mine && <Avatar user={author} size={28} />}</div>
                 <div className={cx("max-w-[78%]", mine && "text-right")}>
-                  {!grouped && !mine && <p className="mb-0.5 ml-1 text-[11px] font-semibold text-slate-500">{m.author.name}</p>}
+                  {!grouped && !mine && <p className="mb-0.5 ml-1 text-[11px] font-semibold text-slate-500">{author.name}</p>}
                   <div
                     className={cx(
                       "inline-block rounded-2xl px-3 py-2 text-left text-[15px] leading-snug",

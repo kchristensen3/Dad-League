@@ -15,6 +15,13 @@
       "when": 1795113904757,
       "tag": "0001_apple_sign_in",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795148359943,
+      "tag": "0002_series_commissioner_photos",
+      "breakpoints": true
     }
   ]
 }

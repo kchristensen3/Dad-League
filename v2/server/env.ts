@@ -17,6 +17,17 @@ const schema = z.object({
   /** Enables the email-only sign-in form. Never set this in production. */
   DEV_LOGIN: z.stringbool().default(false),
   ANTHROPIC_API_KEY: z.string().optional(),
+  /** Photo storage: any S3-compatible bucket (e.g. a Railway Storage Bucket). */
+  S3_BUCKET: z.string().optional(),
+  S3_ENDPOINT: z.string().url().optional(),
+  S3_REGION: z.string().default("auto"),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  S3_FORCE_PATH_STYLE: z.stringbool().default(false),
+  /** Local photo directory, used when no bucket is configured (dev/tests only). */
+  UPLOAD_DIR: z.string().default("uploads"),
+  /** Background jobs (series generation, reminders, the Commissioner). On by default except in tests. */
+  SCHEDULER: z.stringbool().optional(),
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().default("mailto:admin@example.com"),
@@ -66,5 +77,10 @@ export const env = {
   appleEnabled: Boolean(parsed.APPLE_CLIENT_ID && parsed.APPLE_TEAM_ID && parsed.APPLE_KEY_ID && parsed.APPLE_PRIVATE_KEY),
   aiEnabled: Boolean(parsed.ANTHROPIC_API_KEY),
   pushEnabled: Boolean(parsed.VAPID_PUBLIC_KEY && parsed.VAPID_PRIVATE_KEY),
+  s3Enabled: Boolean(parsed.S3_BUCKET && parsed.S3_ACCESS_KEY_ID && parsed.S3_SECRET_ACCESS_KEY),
+  /** In production, photos need a bucket: the container's disk is wiped on every deploy. */
+  photosEnabled:
+    Boolean(parsed.S3_BUCKET && parsed.S3_ACCESS_KEY_ID && parsed.S3_SECRET_ACCESS_KEY) || parsed.NODE_ENV !== "production",
+  schedulerEnabled: parsed.SCHEDULER ?? parsed.NODE_ENV !== "test",
 };
 

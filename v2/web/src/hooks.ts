@@ -50,6 +50,15 @@ export function useLeagueStream(leagueId: string) {
           inv("posts", leagueId);
           if (change.ref) inv("comments", leagueId, change.ref);
           break;
+        case "series":
+          inv("series", leagueId);
+          inv("events", leagueId);
+          break;
+        case "photos":
+          inv("photos", leagueId);
+          inv("events", leagueId);
+          inv("event", leagueId);
+          break;
         case "members":
         case "league":
           inv("members", leagueId);

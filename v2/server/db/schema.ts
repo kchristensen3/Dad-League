@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -9,7 +10,7 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { LinkPreview, NotificationPrefs } from "../../shared/schemas.js";
+import type { CommissionerProposal, LinkPreview, NotificationPrefs, RepeatRule } from "../../shared/schemas.js";
 
 const id = () => uuid("id").primaryKey().default(sql`gen_random_uuid()`);
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -48,6 +49,10 @@ export const leagues = pgTable("leagues", {
   description: text("description").notNull().default(""),
   inviteCode: text("invite_code").notNull().unique(),
   ownerId: uuid("owner_id").notNull().references(() => users.id),
+  /** IANA zone used for recurring meetups and the Commissioner's Monday note. */
+  timezone: text("timezone").notNull().default("America/New_York"),
+  commissionerEnabled: boolean("commissioner_enabled").notNull().default(true),
+  commissionerLastRunAt: timestamp("commissioner_last_run_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
 
@@ -89,6 +94,35 @@ export const ideaVotes = pgTable(
   (t) => [primaryKey({ columns: [t.ideaId, t.userId] })],
 );
 
+/** A standing meetup ("first Thursday of the month") that generates events ahead of time. */
+export const eventSeries = pgTable(
+  "event_series",
+  {
+    id: id(),
+    leagueId: uuid("league_id").notNull().references(() => leagues.id, { onDelete: "cascade" }),
+    createdBy: uuid("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    category: text("category").notNull(),
+    description: text("description").notNull().default(""),
+    location: text("location"),
+    url: text("url"),
+    rule: jsonb("rule").$type<RepeatRule>().notNull(),
+    /** Local wall-clock time, "HH:MM", in `timezone`. */
+    timeOfDay: text("time_of_day").notNull(),
+    timezone: text("timezone").notNull(),
+    /** First date (YYYY-MM-DD) the series may occur on. */
+    startsOn: text("starts_on").notNull(),
+    /** Host order; empty means the creator always hosts. */
+    hostRotation: uuid("host_rotation").array().notNull().default(sql`'{}'::uuid[]`),
+    nextHostIndex: integer("next_host_index").notNull().default(0),
+    /** Date (YYYY-MM-DD) of the last occurrence generated, so deleted ones aren't recreated. */
+    lastGeneratedOn: text("last_generated_on"),
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("event_series_league_idx").on(t.leagueId)],
+);
+
 export const events = pgTable(
   "events",
   {
@@ -96,6 +130,7 @@ export const events = pgTable(
     leagueId: uuid("league_id").notNull().references(() => leagues.id, { onDelete: "cascade" }),
     hostId: uuid("host_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     ideaId: uuid("idea_id").references(() => ideas.id, { onDelete: "set null" }),
+    seriesId: uuid("series_id").references(() => eventSeries.id, { onDelete: "set null" }),
     title: text("title").notNull(),
     category: text("category").notNull(),
     description: text("description").notNull().default(""),
@@ -103,9 +138,11 @@ export const events = pgTable(
     url: text("url"),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
+    recapPromptedAt: timestamp("recap_prompted_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [index("events_league_starts_idx").on(t.leagueId, t.startsAt)],
+  (t) => [index("events_league_starts_idx").on(t.leagueId, t.startsAt), index("events_series_idx").on(t.seriesId)],
 );
 
 export const eventRsvps = pgTable(
@@ -155,18 +192,39 @@ export const postComments = pgTable(
   (t) => [index("post_comments_post_idx").on(t.postId, t.createdAt)],
 );
 
-/** Chat messages. `eventId` null = the league's general channel; otherwise the event's thread. */
+/**
+ * Chat messages. `eventId` null = the league's general channel; otherwise the event's thread.
+ * `kind = 'commissioner'` messages are written by Claude and have no author.
+ */
 export const messages = pgTable(
   "messages",
   {
     id: id(),
     leagueId: uuid("league_id").notNull().references(() => leagues.id, { onDelete: "cascade" }),
     eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }),
-    authorId: uuid("author_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id").references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["user", "commissioner"] }).notNull().default("user"),
+    proposal: jsonb("proposal").$type<CommissionerProposal>(),
     body: text("body").notNull(),
     createdAt: createdAt(),
   },
   (t) => [index("messages_channel_idx").on(t.leagueId, t.eventId, t.createdAt)],
+);
+
+export const photos = pgTable(
+  "photos",
+  {
+    id: id(),
+    leagueId: uuid("league_id").notNull().references(() => leagues.id, { onDelete: "cascade" }),
+    eventId: uuid("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+    uploaderId: uuid("uploader_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    /** Storage key prefix; the files are `${key}.webp` and `${key}_thumb.webp`. */
+    storageKey: text("storage_key").notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("photos_event_idx").on(t.eventId), index("photos_league_idx").on(t.leagueId, t.createdAt)],
 );
 
 export const pushSubscriptions = pgTable("push_subscriptions", {

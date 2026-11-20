@@ -19,6 +19,7 @@ import LeaguePage from "./pages/LeaguePage";
 import Leagues, { RootRedirect } from "./pages/Leagues";
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
+import Wrapped from "./pages/Wrapped";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,6 +58,7 @@ const router = createBrowserRouter([
           { path: "board", element: <Board /> },
           { path: "chat", element: <Chat /> },
           { path: "league", element: <LeaguePage /> },
+          { path: "wrapped", element: <Wrapped /> },
         ],
       },
     ],

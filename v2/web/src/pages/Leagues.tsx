@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Plus, Ticket } from "lucide-react";
 import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router";
-import { api } from "../api";
+import { api, browserTimezone } from "../api";
 import { Logo } from "../components/Brand";
 import { Button, Card, ErrorNote, Field, Input, Spinner, Textarea } from "../components/ui";
 import { lastLeague, useDocumentTitle, useMe } from "../hooks";
@@ -29,7 +29,10 @@ export function CreateOrJoin() {
     navigate(`/l/${id}`);
   };
   const join = useMutation({ mutationFn: () => api.joinLeague(code), onSuccess: (r) => done(r.league.id) });
-  const create = useMutation({ mutationFn: () => api.createLeague({ name, description }), onSuccess: (l) => done(l.id) });
+  const create = useMutation({
+    mutationFn: () => api.createLeague({ name, description, timezone: browserTimezone() }),
+    onSuccess: (l) => done(l.id),
+  });
 
   return (
     <div className="space-y-4">

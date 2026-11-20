@@ -7,7 +7,11 @@ import type {
   LeagueSummary,
   Me,
   Member,
+  Photo,
   Post,
+  RepeatRule,
+  Series,
+  Wrapped,
 } from "../../shared/schemas";
 
 export class ApiError extends Error {
@@ -54,11 +58,11 @@ export const api = {
     ),
   leagues: () => get<{ leagues: LeagueSummary[] }>("/api/leagues").then((r) => r.leagues),
   league: (id: string) => get<{ league: LeagueSummary }>(L(id)).then((r) => r.league),
-  createLeague: (body: { name: string; description: string }) =>
+  createLeague: (body: { name: string; description: string; timezone?: string }) =>
     post<{ league: LeagueSummary }>("/api/leagues", body).then((r) => r.league),
   joinLeague: (code: string) =>
     post<{ league: LeagueSummary; alreadyMember: boolean }>("/api/leagues/join", { code }),
-  updateLeague: (id: string, body: { name?: string; description?: string }) =>
+  updateLeague: (id: string, body: { name?: string; description?: string; timezone?: string; commissionerEnabled?: boolean }) =>
     patch<{ league: LeagueSummary }>(L(id), body).then((r) => r.league),
   rotateInvite: (id: string) => post<{ league: LeagueSummary }>(`${L(id)}/invite-code`).then((r) => r.league),
   deleteLeague: (id: string) => del(L(id)),
@@ -102,6 +106,35 @@ export const api = {
     post<{ comment: Comment }>(`${L(id)}/posts/${postId}/comments`, { body }).then((r) => r.comment),
   deleteComment: (id: string, postId: string, commentId: string) => del(`${L(id)}/posts/${postId}/comments/${commentId}`),
 
+  handOffHost: (id: string, eventId: string, userId: string) =>
+    put<{ event: EventItem }>(`${L(id)}/events/${eventId}/host`, { userId }).then((r) => r.event),
+
+  series: (id: string) => get<{ series: Series[] }>(`${L(id)}/series`).then((r) => r.series),
+  createSeries: (id: string, body: SeriesInput) =>
+    post<{ series: Series; firstEventId: string | null }>(`${L(id)}/series`, body),
+  updateSeries: (id: string, seriesId: string, body: { paused?: boolean; hostRotation?: string[] }) =>
+    patch<{ series: Series }>(`${L(id)}/series/${seriesId}`, body).then((r) => r.series),
+  deleteSeries: (id: string, seriesId: string) => del(`${L(id)}/series/${seriesId}`),
+
+  photos: (id: string, eventId: string) =>
+    get<{ photos: Photo[]; enabled: boolean }>(`${L(id)}/photos?eventId=${eventId}`),
+  uploadPhotos: async (id: string, eventId: string, files: File[]) => {
+    const form = new FormData();
+    form.set("eventId", eventId);
+    for (const f of files) form.append("photos", f);
+    const res = await fetch(`${L(id)}/photos`, { method: "POST", body: form, credentials: "same-origin" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new ApiError(res.status, (data as { error?: string }).error ?? "Upload failed");
+    return (data as { photos: Photo[] }).photos;
+  },
+  deletePhoto: (id: string, photoId: string) => del(`${L(id)}/photos/${photoId}`),
+  wrapped: (id: string, year?: number) =>
+    get<{ wrapped: Wrapped }>(`${L(id)}/wrapped${year ? `?year=${year}` : ""}`).then((r) => r.wrapped),
+
+  askCommissioner: (id: string) => post<{ ok: boolean }>(`${L(id)}/messages/commissioner`),
+  acceptProposal: (id: string, messageId: string) =>
+    post<{ eventId: string; alreadyAccepted: boolean }>(`${L(id)}/messages/${messageId}/accept`),
+
   messages: (id: string, eventId?: string | null, before?: string) => {
     const q = new URLSearchParams();
     if (eventId) q.set("eventId", eventId);
@@ -121,3 +154,24 @@ export interface EventInput {
   url: string | null;
   startsAt: string;
 }
+
+export interface SeriesInput {
+  title: string;
+  category: EventItem["category"];
+  description: string;
+  location: string | null;
+  url: string | null;
+  rule: RepeatRule;
+  timeOfDay: string;
+  timezone: string;
+  startsOn: string;
+  hostRotation: string[];
+}
+
+export const browserTimezone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+};

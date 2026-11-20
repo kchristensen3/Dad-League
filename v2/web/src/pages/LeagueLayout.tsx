@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, Check, ChevronDown, Lightbulb, MessageCircle, Newspaper, Plus, Users } from "lucide-react";
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { Link, NavLink, useLocation, useNavigate, useOutlet } from "react-router";
 import { ApiError, api } from "../api";
 import { Logo } from "../components/Brand";
@@ -94,17 +94,10 @@ export default function LeagueLayout() {
       </header>
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-3 pb-28 pt-4 sm:px-4">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.18 }}
-          >
-            {outlet}
-          </motion.div>
-        </AnimatePresence>
+        {/* Enter-only transition: never waits on the old screen, so navigation can't stall. */}
+        <motion.div key={location.pathname} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+          {outlet}
+        </motion.div>
       </main>
 
       <nav className="pb-safe fixed inset-x-0 bottom-0 z-20 border-t border-slate-200/70 bg-white/90 backdrop-blur">

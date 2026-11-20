@@ -6,8 +6,9 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import type { Member } from "../../../shared/schemas";
 import { api } from "../api";
+import { StandingMeetups } from "../components/StandingMeetups";
 import { TrophyCase } from "../components/TrophyCase";
-import { Avatar, Button, Card, ErrorNote, Field, Input, Pill, Sheet, Spinner, Textarea } from "../components/ui";
+import { Avatar, Button, Card, ErrorNote, Field, Input, Pill, Select, Sheet, Spinner, Textarea } from "../components/ui";
 import { useDocumentTitle, useLeague, useLeagueId, useMe, useMembers } from "../hooks";
 
 function InviteCard({ leagueId }: { leagueId: string }) {
@@ -121,8 +122,18 @@ function LeagueSettings({ leagueId, open, onClose }: { leagueId: string; open: b
   const league = useLeague(leagueId).data!;
   const [name, setName] = useState(league.name);
   const [description, setDescription] = useState(league.description);
+  const [timezone, setTimezone] = useState(league.timezone);
+  const [commissioner, setCommissioner] = useState(league.commissionerEnabled);
+  const zones = (() => {
+    try {
+      return Intl.supportedValuesOf("timeZone");
+    } catch {
+      return [league.timezone];
+    }
+  })();
+  const ask = useMutation({ mutationFn: () => api.askCommissioner(leagueId), onSuccess: () => navigate(`/l/${leagueId}/chat`) });
   const save = useMutation({
-    mutationFn: () => api.updateLeague(leagueId, { name, description }),
+    mutationFn: () => api.updateLeague(leagueId, { name, description, timezone, commissionerEnabled: commissioner }),
     onSuccess: (l) => {
       qc.setQueryData(["league", leagueId], l);
       void qc.invalidateQueries({ queryKey: ["leagues"] });
@@ -141,6 +152,30 @@ function LeagueSettings({ leagueId, open, onClose }: { leagueId: string; open: b
       <form className="space-y-3" onSubmit={(e) => (e.preventDefault(), save.mutate())}>
         <Field label="Name"><Input required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="Description"><Textarea maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} /></Field>
+        <Field label="Time zone" hint="Used for standing meetups and the Commissioner's Monday note.">
+          <Select value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+            {zones.map((z) => (
+              <option key={z} value={z}>
+                {z.replace(/_/g, " ")}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <div className="space-y-2 rounded-2xl bg-amber-50 p-3">
+          <label className="flex items-start justify-between gap-3">
+            <span>
+              <span className="block text-sm font-bold">🏆 The Commissioner</span>
+              <span className="block text-xs text-slate-600">
+                Claude posts a short note in chat Monday mornings: what's coming up, who hasn't replied, and a ready-to-go plan when the calendar is empty.
+              </span>
+            </span>
+            <input type="checkbox" checked={commissioner} onChange={(e) => setCommissioner(e.target.checked)} className="mt-1 h-4 w-4 accent-brand-500" />
+          </label>
+          <Button type="button" variant="secondary" size="sm" loading={ask.isPending} onClick={() => ask.mutate()}>
+            Ask for a note now
+          </Button>
+          <ErrorNote error={ask.error} />
+        </div>
         <ErrorNote error={save.error ?? del.error} />
         <Button type="submit" className="w-full" loading={save.isPending}>Save</Button>
       </form>
@@ -191,6 +226,30 @@ export default function LeaguePage() {
       </section>
 
       <InviteCard leagueId={leagueId} />
+
+      <Link to={`/l/${leagueId}/wrapped`} className="block">
+        <motion.div
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
+          className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-brand-800 to-accent-500 p-5 text-white shadow-lg"
+        >
+          <motion.div
+            aria-hidden
+            className="pointer-events-none absolute -right-8 -top-8 text-8xl opacity-30"
+            animate={{ rotate: [0, 10, 0] }}
+            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+          >
+            🎞️
+          </motion.div>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-white/70">Season Wrapped</p>
+          <p className="mt-1 text-2xl font-black uppercase leading-tight tracking-tight">
+            {league.name}'s {new Date().getFullYear()}
+          </p>
+          <p className="mt-1 text-sm text-white/80">Meetups, MVPs and photos from the year so far →</p>
+        </motion.div>
+      </Link>
+
+      <StandingMeetups leagueId={leagueId} />
 
       {members.data && <TrophyCase members={members.data} />}
 

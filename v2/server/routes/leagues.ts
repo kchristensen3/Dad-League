@@ -16,6 +16,7 @@ import { requireMembership, requireOwner, uuidParam } from "../lib/access.js";
 import { type AppEnv, requireUser } from "../lib/auth.js";
 import { iso, parseBody } from "../lib/http.js";
 import { publish, startRealtime, subscribe } from "../lib/realtime.js";
+import { deletePhotoFiles } from "../lib/storage.js";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
 export const newInviteCode = () => Array.from({ length: 8 }, () => ALPHABET[randomInt(ALPHABET.length)]).join("");
@@ -29,6 +30,8 @@ async function leagueSummaries(userId: string, leagueId?: string): Promise<Leagu
       name: schema.leagues.name,
       description: schema.leagues.description,
       inviteCode: schema.leagues.inviteCode,
+      timezone: schema.leagues.timezone,
+      commissionerEnabled: schema.leagues.commissionerEnabled,
       role: schema.leagueMembers.role,
       memberCount,
     })
@@ -41,7 +44,7 @@ async function leagueSummaries(userId: string, leagueId?: string): Promise<Leagu
   return rows;
 }
 
-async function insertUniqueLeague(values: { name: string; description: string; ownerId: string }) {
+async function insertUniqueLeague(values: { name: string; description: string; ownerId: string; timezone?: string }) {
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
       const [league] = await db
@@ -126,6 +129,7 @@ export const leagueRoutes = new Hono<AppEnv>()
   .delete("/:leagueId", async (c) => {
     const leagueId = uuidParam(c.req.param("leagueId"));
     await requireOwner(leagueId, c.var.user.id);
+    await deletePhotoFiles({ leagueId });
     await db.delete(schema.leagues).where(eq(schema.leagues.id, leagueId));
     return c.json({ ok: true });
   })

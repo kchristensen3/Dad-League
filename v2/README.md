@@ -3,7 +3,9 @@
 A rebuild of Dad League as a conventional web app: one Node service and one Postgres database
 on Railway, installable on phones as a PWA. No Firebase, no Capacitor wrapper, no client-side database rules.
 
-**What's in it:** leagues with invite links and codes · events with RSVPs, cancel/edit, add-to-calendar and a chat
+**What's in it:** standing meetups ("first Thursday of the month") with rotating hosts and day-before reminders ·
+the Commissioner, a weekly Claude-written note in chat that nudges RSVPs and pitches a one-tap plan when the calendar
+is empty · event photo albums and an animated Season Wrapped · leagues with invite links and codes · events with RSVPs, cancel/edit, add-to-calendar and a chat
 thread per event · an idea list with voting, archiving, "schedule this idea", and Claude-generated suggestions
 tailored to where the league lives and what they're into · a board for posts, links (with previews), likes and comments ·
 league chat with @mentions · member stats · Web Push notifications with per-category settings · account deletion.
@@ -60,7 +62,9 @@ npm run dev                   # http://localhost:5173
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — from Google Cloud Console → Credentials → OAuth client (Web).
      Authorized redirect URI: `https://<your-domain>/auth/google/callback`
    - `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` — optional, enables Sign in with Apple (see below)
-   - `ANTHROPIC_API_KEY` — optional, enables "Suggest" on the Ideas tab
+   - `ANTHROPIC_API_KEY` — optional, enables "Suggest" on the Ideas tab and the Commissioner
+   - `S3_BUCKET`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` (and `S3_REGION` if not `auto`) — for photos.
+     Add a Storage Bucket to the project (**+ New → Bucket**) and reference its credentials here.
    - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` — optional, from `npx web-push generate-vapid-keys`
    - `APP_URL` — only if you add a custom domain (otherwise it uses Railway's domain)
 5. Deploy. `railway.json` builds the Dockerfile, runs migrations as the pre-deploy step, and health-checks `/healthz`.
@@ -105,7 +109,7 @@ CI plus a Railway PR environment let you try it on your phone → merge → Rail
 
 - **Existing Firestore data.** v2 starts empty. Moving the current leagues, members, events and chat over takes a
   one-off import script run with Firebase admin credentials.
-- **Photo uploads on board posts.** Links get previews, but images need object storage (e.g. a Railway bucket).
+- **Photo uploads on board posts.** Event albums have photos; board posts still take links only.
 - **Google Places autocomplete** for locations. Locations are free text and link to Google Maps.
 - **The native iOS app.** The PWA covers it, including push on iOS 16.4+ once it's added to the Home Screen.
   If App Store presence matters, Capacitor can wrap this build later.

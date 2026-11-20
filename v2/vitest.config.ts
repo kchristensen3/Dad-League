@@ -1,4 +1,6 @@
 import { generateKeyPairSync } from "node:crypto";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { defineConfig } from "vitest/config";
 
 // A throwaway key so the Apple provider can be constructed in tests (Apple is never actually called).
@@ -13,6 +15,7 @@ export default defineConfig({
       DEV_LOGIN: "true",
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/dadleague_test",
       APP_URL: "http://localhost:3000",
+      UPLOAD_DIR: path.join(tmpdir(), `dadleague-test-uploads-${process.pid}`),
       GOOGLE_CLIENT_ID: "test-client.apps.googleusercontent.com",
       GOOGLE_CLIENT_SECRET: "  test-secret\n",
       APPLE_CLIENT_ID: "app.dadleague.test",

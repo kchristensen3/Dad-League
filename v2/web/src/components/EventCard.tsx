@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, isToday, isTomorrow } from "date-fns";
-import { Check, MapPin, MessageCircle, X } from "lucide-react";
+import { Camera, Check, MapPin, MessageCircle, Repeat, X } from "lucide-react";
 import { motion } from "motion/react";
 import { useRef } from "react";
 import { Link } from "react-router";
@@ -92,7 +92,8 @@ export function EventCard({ leagueId, event, past }: { leagueId: string; event: 
             </h3>
             {event.cancelled && <Pill className="bg-red-50 text-red-600">Cancelled</Pill>}
           </div>
-          <p className="text-xs text-slate-500">
+          <p className="flex items-center gap-1 text-xs text-slate-500">
+            {event.series && <Repeat size={11} className="shrink-0 text-brand-500" aria-label={event.series.label} />}
             {format(d, "h:mm a")} · hosted by {event.host.name.split(" ")[0]}
           </p>
           {event.location && (
@@ -109,7 +110,15 @@ export function EventCard({ leagueId, event, past }: { leagueId: string; event: 
                   <MessageCircle size={12} /> {event.messageCount}
                 </span>
               )}
+              {event.photoCount > 0 && (
+                <span className="flex items-center gap-0.5 text-xs text-slate-400">
+                  <Camera size={12} /> {event.photoCount}
+                </span>
+              )}
             </div>
+            {past && !event.cancelled && event.photoCount === 0 && (
+              <span className="relative z-10 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">📸 Add photos</span>
+            )}
             {!past && !event.cancelled && (
               <div className="relative z-10">
                 <RsvpButtons leagueId={leagueId} event={event} compact />

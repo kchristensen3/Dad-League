@@ -9,7 +9,7 @@ export class TestUser {
   constructor(public email: string, public name: string) {}
 
   static async create(name = "Dad") {
-    const user = new TestUser(`${name.toLowerCase()}-${randomUUID().slice(0, 8)}@test.dev`, name);
+    const user = new TestUser(`${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${randomUUID().slice(0, 8)}@test.dev`, name);
     const res = await user.req("POST", "/auth/dev", { email: user.email, name });
     if (res.status !== 200) throw new Error(`login failed: ${res.status}`);
     return user;
@@ -29,6 +29,14 @@ export class TestUser {
     const session = setCookie?.match(/dl_session=([^;]*)/);
     if (session) this.cookie = session[1] ? `dl_session=${session[1]}` : "";
     return res;
+  }
+
+  async upload(path: string, form: FormData) {
+    return app.request(path, { method: "POST", headers: this.cookie ? { cookie: this.cookie } : {}, body: form });
+  }
+
+  async me(): Promise<{ id: string; name: string }> {
+    return (await this.json("GET", "/api/me")).data.user;
   }
 
   async json<T = any>(method: string, path: string, body?: unknown): Promise<{ status: number; data: T }> {

@@ -9,7 +9,9 @@ Deployed on Railway as one service plus a Postgres database.
   - `db/schema.ts` Drizzle schema (source of truth). `db/migrations/` generated SQL, committed.
   - `routes/` one file per resource. League-scoped routers come from `scopedRouter()` in `routes/scope.ts`,
     which guarantees `c.var.user`, `c.var.leagueId`, `c.var.membership`.
-  - `lib/` auth (cookie sessions), access checks, realtime (Postgres LISTEN/NOTIFY → SSE), AI, push, link previews.
+  - `lib/` auth (cookie sessions), access checks, realtime (Postgres LISTEN/NOTIFY → SSE), AI, push, link previews,
+    `recurrence.ts` (pure date math for standing meetups), `series.ts` (generates their events + host rotation),
+    `commissioner.ts` (Claude's weekly note), `storage.ts` (S3 bucket or local disk), `scheduler.ts` (15-min jobs).
   - `test/` Vitest integration tests that hit the real app against a real Postgres.
 - `shared/schemas.ts` zod request schemas + response types used by both server and web. Change API shapes here first.
 - `web/` React 19 + Vite + Tailwind v4 + TanStack Query + React Router SPA.
@@ -30,7 +32,14 @@ Deployed on Railway as one service plus a Postgres database.
 - Validate every body with a schema from `shared/schemas.ts` via `parseBody`. Never trust route params: use `uuidParam`.
 - Never edit an applied migration; generate a new one.
 - Push notifications go through `notifyLeague` and are fire-and-forget (`void`), never awaited in a request.
-- Claude calls live in `server/lib/ai.ts` only. Model: `claude-opus-5-5`, structured output via zod.
+- Claude calls live in `server/lib/ai.ts` and `server/lib/commissioner.ts` only. Model: `claude-opus-5-5`, structured
+  output via zod. Tests never call the API: `runCommissioner` takes an injectable `write` function.
+- Background work goes in `scheduler.ts`. Every job must be idempotent (mark rows as done, e.g. `reminderSentAt`) because
+  the advisory lock only stops overlap, not re-runs. The scheduler is off in tests; call the job functions directly.
+- Standing meetups keep `UPCOMING_PER_SERIES` future events materialized. Store wall-clock time + IANA zone and convert
+  with `toInstant`, never by adding hours, so DST doesn't shift meetups.
+- Photos are re-encoded with sharp (strips EXIF/GPS) and served through `/api/leagues/:id/photos/:photoId/:size`, which
+  checks membership before redirecting to a short-lived presigned URL. Never expose bucket URLs directly.
 - Keep the UI mobile-first; most people use it as an installed PWA on their phone.
 
 ## Auth
@@ -39,4 +48,5 @@ the provider's account id, then verified email. Apple's callback is a cross-site
 Origin check in `sameOriginWrites` and its state cookie is `SameSite=None; Secure`. Don't "fix" either.
 
 ## Env
-See `.env.example`. `DEV_LOGIN=true` enables email-only sign-in for local dev and tests and is rejected in production.
+See `.env.example`. `DEV_LOGIN=true` enables email-only sign-in for local dev and tests; it is ignored (with a warning)
+in production. Photos in production need the `S3_*` variables; the container disk is wiped on every deploy.

@@ -1,10 +1,19 @@
 import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
-import { type EventItem, type UserSummary, createEventSchema, rsvpSchema, updateEventSchema } from "../../shared/schemas.js";
+import {
+  type EventItem,
+  type UserSummary,
+  createEventSchema,
+  handOffHostSchema,
+  rsvpSchema,
+  updateEventSchema,
+} from "../../shared/schemas.js";
 import { db, schema } from "../db/client.js";
-import { forbidden, notFound, uuidParam } from "../lib/access.js";
+import { forbidden, notFound, requireMembership, uuidParam } from "../lib/access.js";
+import { describeRule } from "../lib/recurrence.js";
+import { deletePhotoFiles } from "../lib/storage.js";
 import { iso, parseBody, userSummary } from "../lib/http.js";
-import { notifyLeague } from "../lib/push.js";
+import { notifyLeague, notifyUsers } from "../lib/push.js";
 import { publish } from "../lib/realtime.js";
 import { canModify, scopedRouter } from "./scope.js";
 
@@ -23,9 +32,12 @@ async function listEvents(
       event: e,
       host: userSummary,
       messageCount: sql<number>`(select count(*)::int from ${schema.messages} m where m.event_id = ${e.id})`,
+      photoCount: sql<number>`(select count(*)::int from ${schema.photos} p where p.event_id = ${e.id})`,
+      seriesRule: schema.eventSeries.rule,
     })
     .from(e)
     .innerJoin(schema.users, eq(schema.users.id, e.hostId))
+    .leftJoin(schema.eventSeries, eq(schema.eventSeries.id, e.seriesId))
     .where(
       and(
         eq(e.leagueId, leagueId),
@@ -50,7 +62,7 @@ async function listEvents(
     byEvent.set(r.eventId, entry);
   }
 
-  return rows.map(({ event, host, messageCount }) => {
+  return rows.map(({ event, host, messageCount, photoCount, seriesRule }) => {
     const r = byEvent.get(event.id);
     return {
       id: event.id,
@@ -62,11 +74,13 @@ async function listEvents(
       startsAt: iso(event.startsAt),
       cancelled: event.cancelledAt !== null,
       ideaId: event.ideaId,
+      series: event.seriesId && seriesRule ? { id: event.seriesId, label: describeRule(seriesRule) } : null,
       host,
       going: r?.going ?? [],
       notGoing: r?.notGoing ?? [],
       myRsvp: r?.mine ?? null,
       messageCount,
+      photoCount,
     };
   });
 }
@@ -143,9 +157,34 @@ export const eventRoutes = scopedRouter()
   .delete("/:eventId", async (c) => {
     const event = await loadEvent(c.var.leagueId, uuidParam(c.req.param("eventId")));
     if (!canModify(c, event.hostId)) forbidden("Only the host or league owner can delete this event");
+    await deletePhotoFiles({ eventId: event.id });
     await db.delete(schema.events).where(eq(schema.events.id, event.id));
     await publish({ leagueId: c.var.leagueId, kind: "events" });
     return c.json({ ok: true });
+  })
+
+  /** Pass hosting duties to another member (current host or league owner). */
+  .put("/:eventId/host", async (c) => {
+    const event = await loadEvent(c.var.leagueId, uuidParam(c.req.param("eventId")));
+    if (!canModify(c, event.hostId)) forbidden("Only the host or league owner can hand off hosting");
+    const { userId } = await parseBody(c, handOffHostSchema);
+    await requireMembership(c.var.leagueId, userId);
+    await db.update(schema.events).set({ hostId: userId }).where(eq(schema.events.id, event.id));
+    await db
+      .insert(schema.eventRsvps)
+      .values({ eventId: event.id, userId, status: "going" })
+      .onConflictDoUpdate({ target: [schema.eventRsvps.eventId, schema.eventRsvps.userId], set: { status: "going", updatedAt: new Date() } });
+    await publish({ leagueId: c.var.leagueId, kind: "events" });
+    if (userId !== c.var.user.id) {
+      void notifyUsers([userId], "events", {
+        title: `🎤 You're hosting ${event.title}`,
+        body: `${c.var.user.name} handed hosting to you.`,
+        url: `/l/${c.var.leagueId}/events/${event.id}`,
+        tag: `event-${event.id}`,
+      });
+    }
+    const [full] = await listEvents(c.var.leagueId, c.var.user.id, { id: event.id });
+    return c.json({ event: full });
   })
 
   .put("/:eventId/rsvp", async (c) => {

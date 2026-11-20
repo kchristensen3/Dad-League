@@ -164,6 +164,9 @@ export default function Profile() {
       <ProfileForm me={me} />
       <Notifications me={me} />
       <Card className="space-y-2">
+        <Link to="/about" className="block rounded-xl px-4 py-2.5 text-center text-sm font-semibold text-brand-600 hover:bg-brand-50">
+          What is Dad League?
+        </Link>
         <Button variant="secondary" className="w-full" onClick={() => signOut.mutate()} loading={signOut.isPending}>
           <LogOut size={16} /> Sign out
         </Button>

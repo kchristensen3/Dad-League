@@ -144,7 +144,13 @@ export interface Member extends UserSummary {
   availability: string | null;
   interests: string[];
   joinedAt: string;
-  stats: { eventsAttended: number; eventsHosted: number; ideasProposed: number };
+  stats: {
+    eventsAttended: number;
+    eventsHosted: number;
+    ideasProposed: number;
+    messagesSent: number;
+    eventsDeclined: number;
+  };
 }
 
 export interface Idea {

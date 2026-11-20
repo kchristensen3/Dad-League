@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MotionConfig } from "motion/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Navigate, Outlet, RouterProvider, createBrowserRouter, useLocation } from "react-router";
@@ -6,6 +7,7 @@ import { ApiError } from "./api";
 import { Spinner } from "./components/ui";
 import { useMe } from "./hooks";
 import "./index.css";
+import About from "./pages/About";
 import Board from "./pages/Board";
 import Chat from "./pages/Chat";
 import EventDetail from "./pages/EventDetail";
@@ -38,6 +40,7 @@ function RequireAuth() {
 const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
   { path: "/join/:code", element: <Join /> },
+  { path: "/about", element: <About /> },
   {
     element: <RequireAuth />,
     children: [
@@ -68,7 +71,10 @@ if ("serviceWorker" in navigator) {
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      {/* Honors the OS "reduce motion" setting for every animation in the app. */}
+      <MotionConfig reducedMotion="user">
+        <RouterProvider router={router} />
+      </MotionConfig>
     </QueryClientProvider>
   </StrictMode>,
 );

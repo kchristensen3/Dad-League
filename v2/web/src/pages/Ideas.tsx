@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, ArchiveRestore, CalendarPlus, Lightbulb, MapPin, Plus, Sparkles, ThumbsUp, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { useRef, useState } from "react";
 import { CATEGORIES, type Category, type Idea, type IdeaSuggestion } from "../../../shared/schemas";
 import { api } from "../api";
 import { type EventDraft, EventForm } from "../components/EventForm";
+import { CATEGORY_STYLE, celebrate, listItem } from "../fx";
 import { Avatar, Button, Card, Empty, ErrorNote, Field, Input, Pill, Select, Sheet, Spinner, Textarea, cx } from "../components/ui";
 import { useDocumentTitle, useLeague, useLeagueId, useMe } from "../hooks";
 
@@ -56,6 +58,7 @@ function SuggestIdeas({ leagueId, open, onClose }: { leagueId: string; open: boo
   const add = useMutation({
     mutationFn: (s: IdeaSuggestion) => api.createIdea(leagueId, { ...s, location: null, aiSuggested: true }),
     onSuccess: (_i, s) => {
+      celebrate(null, "small");
       setAdded((a) => new Set(a).add(s.title));
       void qc.invalidateQueries({ queryKey: ["ideas", leagueId] });
     },
@@ -73,10 +76,18 @@ function SuggestIdeas({ leagueId, open, onClose }: { leagueId: string; open: boo
           </Button>
         </form>
         <ErrorNote error={suggest.error ?? add.error} />
-        {suggest.isPending && <p className="animate-pulse text-center text-sm text-slate-400">Thinking about what you'd actually enjoy…</p>}
+        {suggest.isPending && (
+          <div className="flex flex-col items-center gap-2 py-6 text-sm text-slate-400">
+            <motion.div animate={{ rotate: 360, scale: [1, 1.25, 1] }} transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}>
+              <Sparkles className="text-accent-500" />
+            </motion.div>
+            Thinking about what your crew would actually enjoy…
+          </div>
+        )}
         <div className="space-y-2">
-          {suggest.data?.map((s) => (
-            <Card key={s.title} className="space-y-1.5 bg-slate-50">
+          {suggest.data?.map((s, i) => (
+            <motion.div key={s.title} {...listItem(i)} transition={{ delay: i * 0.08 }}>
+            <Card className="space-y-1.5 bg-slate-50">
               <div className="flex items-start gap-2">
                 <p className="flex-1 font-bold">{s.title}</p>
                 <Button
@@ -88,9 +99,10 @@ function SuggestIdeas({ leagueId, open, onClose }: { leagueId: string; open: boo
                   {added.has(s.title) ? "Added" : <><Plus size={14} /> Add</>}
                 </Button>
               </div>
-              <Pill>{s.category}</Pill>
+              <Pill className={CATEGORY_STYLE[s.category].chip}>{CATEGORY_STYLE[s.category].emoji} {s.category}</Pill>
               <p className="text-sm text-slate-600">{s.description}</p>
             </Card>
+            </motion.div>
           ))}
         </div>
       </div>
@@ -104,12 +116,21 @@ function IdeaCard({ leagueId, idea, onSchedule }: { leagueId: string; idea: Idea
   const league = useLeague(leagueId);
   const canEdit = idea.author.id === me?.id || league.data?.role === "owner";
   const refresh = () => qc.invalidateQueries({ queryKey: ["ideas", leagueId] });
-  const vote = useMutation({ mutationFn: () => api.vote(leagueId, idea.id, !idea.votedByMe), onSuccess: refresh });
+  const voteRef = useRef<HTMLButtonElement>(null);
+  const vote = useMutation({
+    mutationFn: () => api.vote(leagueId, idea.id, !idea.votedByMe),
+    onSuccess: () => {
+      if (!idea.votedByMe) celebrate(voteRef.current, "small");
+      return refresh();
+    },
+  });
   const archive = useMutation({ mutationFn: () => api.updateIdea(leagueId, idea.id, { archived: !idea.archived }), onSuccess: refresh });
   const remove = useMutation({ mutationFn: () => api.deleteIdea(leagueId, idea.id), onSuccess: refresh });
   return (
     <Card className="flex gap-3">
-      <button
+      <motion.button
+        ref={voteRef}
+        whileTap={{ scale: 0.85 }}
         onClick={() => vote.mutate()}
         disabled={vote.isPending || idea.archived}
         className={cx(
@@ -120,15 +141,21 @@ function IdeaCard({ leagueId, idea, onSchedule }: { leagueId: string; idea: Idea
         aria-label={idea.votedByMe ? "Remove vote" : "Vote"}
       >
         <ThumbsUp size={16} />
-        {idea.voteCount}
-      </button>
+        <AnimatePresence mode="popLayout" initial={false}>
+          <motion.span key={idea.voteCount} initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }}>
+            {idea.voteCount}
+          </motion.span>
+        </AnimatePresence>
+      </motion.button>
       <div className="min-w-0 flex-1 space-y-1.5">
         <div className="flex flex-wrap items-center gap-1.5">
           <h3 className="font-bold">{idea.title}</h3>
           {idea.aiSuggested && <Sparkles size={14} className="text-accent-500" aria-label="Suggested by Claude" />}
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <Pill>{idea.category}</Pill>
+          <Pill className={CATEGORY_STYLE[idea.category].chip}>
+            {CATEGORY_STYLE[idea.category].emoji} {idea.category}
+          </Pill>
           {idea.location && <Pill><MapPin size={11} /> {idea.location}</Pill>}
         </div>
         {idea.description && <p className="text-sm text-slate-600">{idea.description}</p>}
@@ -207,17 +234,21 @@ export default function Ideas() {
         <Spinner />
       ) : ideas.length ? (
         <div className="space-y-2">
-          {ideas.map((i) => (
-            <IdeaCard
-              key={i.id}
-              leagueId={leagueId}
-              idea={i}
-              onSchedule={() => setPlanning({ title: i.title, category: i.category, description: i.description, location: i.location, ideaId: i.id })}
-            />
-          ))}
+          <AnimatePresence initial={false}>
+            {ideas.map((i, idx) => (
+              // `layout` slides cards into their new rank when votes change.
+              <motion.div key={i.id} layout {...listItem(idx)}>
+                <IdeaCard
+                  leagueId={leagueId}
+                  idea={i}
+                  onSchedule={() => setPlanning({ title: i.title, category: i.category, description: i.description, location: i.location, ideaId: i.id })}
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       ) : (
-        <Empty icon={<Lightbulb size={36} />} title={archived ? "Nothing archived" : "No ideas yet"}>
+        <Empty icon={<Lightbulb size={30} />} title={archived ? "Nothing archived" : "No ideas yet"}>
           {!archived && (
             <>
               Add one, or{" "}

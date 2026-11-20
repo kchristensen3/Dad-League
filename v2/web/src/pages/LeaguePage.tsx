@@ -1,10 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Copy, Crown, LogOut, MapPin, RefreshCw, Settings, Share2, Trash2, Trophy } from "lucide-react";
+import { Copy, Crown, Info, LogOut, MapPin, RefreshCw, Settings, Share2, Trash2 } from "lucide-react";
+import { motion } from "motion/react";
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import type { Member } from "../../../shared/schemas";
 import { api } from "../api";
+import { TrophyCase } from "../components/TrophyCase";
 import { Avatar, Button, Card, ErrorNote, Field, Input, Pill, Sheet, Spinner, Textarea } from "../components/ui";
 import { useDocumentTitle, useLeague, useLeagueId, useMe, useMembers } from "../hooks";
 
@@ -28,12 +30,18 @@ function InviteCard({ leagueId }: { leagueId: string }) {
     }
   };
   return (
-    <Card className="space-y-3 bg-gradient-to-br from-brand-500 to-brand-700 text-white ring-0">
-      <div>
+    <Card className="relative space-y-3 overflow-hidden bg-gradient-to-br from-brand-500 to-brand-700 text-white ring-0">
+      <motion.div
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/3 skew-x-[-20deg] bg-white/15 blur-md"
+        animate={{ left: ["-50%", "150%"] }}
+        transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 4, ease: "easeInOut" }}
+      />
+      <div className="relative">
         <p className="text-xs font-semibold uppercase tracking-wider text-brand-100">Invite the crew</p>
         <p className="font-mono text-3xl font-black tracking-[0.2em]">{league.inviteCode}</p>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="relative flex flex-wrap gap-2">
         <Button variant="secondary" size="sm" onClick={share}>
           <Share2 size={14} /> {copied ? "Link copied!" : "Share link"}
         </Button>
@@ -81,7 +89,7 @@ function MemberRow({ leagueId, m, isOwnerView, meId }: { leagueId: string; m: Me
           {m.name} {m.role === "owner" && <Crown size={14} className="text-accent-500" aria-label="Owner" />}
         </p>
         <p className="text-xs text-slate-500">
-          {m.stats.eventsAttended} attended · {m.stats.eventsHosted} hosted · {m.stats.ideasProposed} ideas
+          {m.stats.eventsAttended} attended · {m.stats.eventsHosted} hosted · {m.stats.ideasProposed} ideas · {m.stats.messagesSent} messages
         </p>
         {(m.location || m.availability) && (
           <p className="flex flex-wrap gap-x-3 text-xs text-slate-500">
@@ -167,7 +175,6 @@ export default function LeaguePage() {
     },
   });
   const isOwner = league.role === "owner";
-  const mvp = [...(members.data ?? [])].sort((a, b) => b.stats.eventsAttended - a.stats.eventsAttended)[0];
 
   return (
     <div className="space-y-4">
@@ -185,15 +192,7 @@ export default function LeaguePage() {
 
       <InviteCard leagueId={leagueId} />
 
-      {mvp && mvp.stats.eventsAttended > 0 && (
-        <Card className="flex items-center gap-3 bg-gradient-to-r from-amber-50 to-white">
-          <Trophy className="text-accent-500" />
-          <p className="text-sm">
-            <span className="font-bold">{mvp.name}</span> leads the league with {mvp.stats.eventsAttended}{" "}
-            {mvp.stats.eventsAttended === 1 ? "meetup" : "meetups"} attended.
-          </p>
-        </Card>
-      )}
+      {members.data && <TrophyCase members={members.data} />}
 
       <Card>
         <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">Members · {members.data?.length ?? "…"}</h2>
@@ -205,6 +204,10 @@ export default function LeaguePage() {
           </ul>
         )}
       </Card>
+
+      <Link to="/about" className="flex items-center justify-center gap-1.5 text-sm font-semibold text-brand-600 hover:underline">
+        <Info size={15} /> What is Dad League?
+      </Link>
 
       {!isOwner && (
         <Button variant="ghost" className="w-full text-slate-500" loading={leave.isPending} onClick={() => confirm(`Leave ${league.name}?`) && leave.mutate()}>

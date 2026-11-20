@@ -1,5 +1,7 @@
 import { Loader2, X } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { type ButtonHTMLAttributes, type ReactNode, useEffect } from "react";
+import { createPortal } from "react-dom";
 import type { UserSummary } from "../../../shared/schemas";
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
@@ -95,11 +97,22 @@ export function Spinner({ className }: { className?: string }) {
 
 export function Empty({ icon, title, children }: { icon: ReactNode; title: string; children?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 px-6 py-10 text-center">
-      <div className="text-slate-300">{icon}</div>
-      <p className="font-semibold text-slate-700">{title}</p>
-      {children && <div className="text-sm text-slate-500">{children}</div>}
-    </div>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative flex flex-col items-center gap-2 overflow-hidden rounded-3xl bg-white px-6 py-12 text-center ring-1 ring-slate-200/70"
+    >
+      <div className="pointer-events-none absolute -top-16 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full bg-brand-100 blur-3xl" aria-hidden />
+      <motion.div
+        className="relative mb-1 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-brand-500"
+        animate={{ y: [0, -5, 0] }}
+        transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+      >
+        {icon}
+      </motion.div>
+      <p className="relative text-lg font-black tracking-tight text-slate-800">{title}</p>
+      {children && <div className="relative max-w-xs text-sm text-slate-500">{children}</div>}
+    </motion.div>
   );
 }
 
@@ -112,7 +125,7 @@ export function ErrorNote({ error }: { error: unknown }) {
   );
 }
 
-/** Bottom sheet on phones, centered dialog on wider screens. */
+/** Bottom sheet on phones, centered dialog on wider screens. Springs in, fades out. */
 export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
   useEffect(() => {
     if (!open) return;
@@ -124,20 +137,38 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
       document.body.style.overflow = "";
     };
   }, [open, onClose]);
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal aria-label={title}>
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="pb-safe relative max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-xl sm:max-w-lg sm:rounded-3xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold">{title}</h2>
-          <button onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Close">
-            <X size={20} />
-          </button>
+  // Portaled to <body> so page-transition transforms can't trap the fixed overlay.
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal aria-label={title}>
+          <motion.div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={onClose}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+          <motion.div
+            className="pb-safe relative max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-xl sm:max-w-lg sm:rounded-3xl"
+            initial={{ y: "100%", opacity: 0.5 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: "100%", opacity: 0 }}
+            transition={{ type: "spring", damping: 30, stiffness: 320 }}
+          >
+            <div className="mx-auto -mt-2 mb-3 h-1.5 w-10 rounded-full bg-slate-200 sm:hidden" aria-hidden />
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-black tracking-tight">{title}</h2>
+              <button onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Close">
+                <X size={20} />
+              </button>
+            </div>
+            {children}
+          </motion.div>
         </div>
-        {children}
-      </div>
-    </div>
+      )}
+    </AnimatePresence>,
+    document.body,
   );
 }
 

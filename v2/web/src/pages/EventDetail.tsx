@@ -6,7 +6,8 @@ import { Link, useNavigate, useParams } from "react-router";
 import type { EventItem } from "../../../shared/schemas";
 import { api } from "../api";
 import { ChatThread } from "../components/ChatThread";
-import { RsvpButtons, whenLabel } from "../components/EventCard";
+import { DateTile, RsvpButtons, whenLabel } from "../components/EventCard";
+import { CATEGORY_STYLE } from "../fx";
 import { EventForm } from "../components/EventForm";
 import { Avatar, Card, ErrorNote, Pill, Spinner } from "../components/ui";
 import { useDocumentTitle, useLeague, useLeagueId, useMe } from "../hooks";
@@ -106,14 +107,19 @@ export default function EventDetail() {
       </div>
 
       <Card className="space-y-4">
-        <div className="space-y-1">
-          <div className="flex flex-wrap gap-1.5">
-            <Pill>{e.category}</Pill>
-            {e.cancelled && <Pill className="bg-red-50 text-red-600">Cancelled</Pill>}
+        <div className="flex items-start gap-4">
+          <DateTile event={e} size="lg" />
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap gap-1.5">
+              <Pill className={CATEGORY_STYLE[e.category].chip}>
+                {CATEGORY_STYLE[e.category].emoji} {e.category}
+              </Pill>
+              {e.cancelled && <Pill className="bg-red-50 text-red-600">Cancelled</Pill>}
+            </div>
+            <h1 className={`text-2xl font-black leading-tight tracking-tight ${e.cancelled ? "line-through opacity-60" : ""}`}>{e.title}</h1>
+            <p className="font-semibold text-brand-600">{whenLabel(e.startsAt)}</p>
+            <p className="text-xs text-slate-500">{format(new Date(e.startsAt), "EEEE, MMMM d, yyyy")}</p>
           </div>
-          <h1 className={`text-2xl font-black leading-tight ${e.cancelled ? "line-through opacity-60" : ""}`}>{e.title}</h1>
-          <p className="font-semibold text-brand-600">{whenLabel(e.startsAt)}</p>
-          <p className="text-xs text-slate-500">{format(new Date(e.startsAt), "EEEE, MMMM d, yyyy")}</p>
         </div>
 
         {(e.location || e.url) && (

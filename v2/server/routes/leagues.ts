@@ -149,16 +149,21 @@ export const leagueRoutes = new Hono<AppEnv>()
         eventsHosted: sql<number>`(select count(*)::int from ${schema.events} e
           where e.host_id = ${u.id} and e.league_id = ${leagueId} and e.cancelled_at is null)`,
         ideasProposed: sql<number>`(select count(*)::int from ${schema.ideas} i where i.author_id = ${u.id} and i.league_id = ${leagueId})`,
+        messagesSent: sql<number>`(select count(*)::int from ${schema.messages} m where m.author_id = ${u.id} and m.league_id = ${leagueId})`,
+        eventsDeclined: sql<number>`(select count(*)::int from ${schema.eventRsvps} r join ${schema.events} e on e.id = r.event_id
+          where r.user_id = ${u.id} and r.status = 'not_going' and e.league_id = ${leagueId})`,
       })
       .from(schema.leagueMembers)
       .innerJoin(u, eq(u.id, schema.leagueMembers.userId))
       .where(eq(schema.leagueMembers.leagueId, leagueId))
       .orderBy(asc(schema.leagueMembers.joinedAt));
-    const members: Member[] = rows.map(({ eventsAttended, eventsHosted, ideasProposed, joinedAt, ...m }) => ({
-      ...m,
-      joinedAt: iso(joinedAt),
-      stats: { eventsAttended, eventsHosted, ideasProposed },
-    }));
+    const members: Member[] = rows.map(
+      ({ eventsAttended, eventsHosted, ideasProposed, messagesSent, eventsDeclined, joinedAt, ...m }) => ({
+        ...m,
+        joinedAt: iso(joinedAt),
+        stats: { eventsAttended, eventsHosted, ideasProposed, messagesSent, eventsDeclined },
+      }),
+    );
     return c.json({ members });
   })
 

@@ -6,9 +6,11 @@ import { api } from "../api";
 import { Logo } from "../components/Brand";
 import { Button, Card, ErrorNote, Field, Input, Spinner, Textarea } from "../components/ui";
 import { lastLeague, useDocumentTitle, useMe } from "../hooks";
+import { hasSeenAbout } from "./About";
 
 export function RootRedirect() {
   const leagues = useQuery({ queryKey: ["leagues"], queryFn: api.leagues });
+  if (!hasSeenAbout()) return <Navigate to="/about?welcome=1" replace />;
   if (leagues.isLoading) return <Spinner className="pt-32" />;
   const list = leagues.data ?? [];
   if (list.length === 0) return <Navigate to="/leagues" replace />;

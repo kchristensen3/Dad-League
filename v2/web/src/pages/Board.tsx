@@ -1,10 +1,12 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import { Heart, MessageSquare, Newspaper, Plus, Trash2 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import type { Post } from "../../../shared/schemas";
 import { api } from "../api";
 import { Avatar, Button, Card, Empty, ErrorNote, Field, Input, RichText, Sheet, Spinner, Textarea, cx } from "../components/ui";
+import { listItem } from "../fx";
 import { useDocumentTitle, useLeague, useLeagueId, useMe } from "../hooks";
 
 const ago = (iso: string) => formatDistanceToNowStrict(new Date(iso), { addSuffix: true });
@@ -130,14 +132,28 @@ function PostCard({ leagueId, post }: { leagueId: string; post: Post }) {
         </a>
       )}
       <div className="flex gap-4 text-sm font-semibold text-slate-500">
-        <button onClick={() => like.mutate()} className={cx("flex items-center gap-1", post.likedByMe && "text-rose-500")} aria-pressed={post.likedByMe}>
-          <Heart size={16} fill={post.likedByMe ? "currentColor" : "none"} /> {post.likeCount || ""}
-        </button>
+        <motion.button
+          whileTap={{ scale: 0.8 }}
+          onClick={() => like.mutate()}
+          className={cx("flex items-center gap-1", post.likedByMe && "text-rose-500")}
+          aria-pressed={post.likedByMe}
+        >
+          <motion.span key={String(post.likedByMe)} initial={{ scale: post.likedByMe ? 0.4 : 1 }} animate={{ scale: 1 }} transition={{ type: "spring", damping: 8, stiffness: 400 }}>
+            <Heart size={16} fill={post.likedByMe ? "currentColor" : "none"} />
+          </motion.span>
+          {post.likeCount || ""}
+        </motion.button>
         <button onClick={() => setShowComments((s) => !s)} className="flex items-center gap-1">
           <MessageSquare size={16} /> {post.commentCount || ""} {post.commentCount === 1 ? "comment" : "comments"}
         </button>
       </div>
-      {showComments && <Comments leagueId={leagueId} post={post} />}
+      <AnimatePresence initial={false}>
+        {showComments && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            <Comments leagueId={leagueId} post={post} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Card>
   );
 }
@@ -168,7 +184,13 @@ export default function Board() {
         <Spinner />
       ) : posts.length ? (
         <div className="space-y-3">
-          {posts.map((p) => <PostCard key={p.id} leagueId={leagueId} post={p} />)}
+          <AnimatePresence initial={false}>
+            {posts.map((p, i) => (
+              <motion.div key={p.id} layout {...listItem(i)}>
+                <PostCard leagueId={leagueId} post={p} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
           {q.hasNextPage && (
             <Button variant="secondary" className="w-full" loading={q.isFetchingNextPage} onClick={() => q.fetchNextPage()}>
               Older posts
@@ -176,7 +198,7 @@ export default function Board() {
           )}
         </div>
       ) : (
-        <Empty icon={<Newspaper size={36} />} title="The board is empty">Need a recommendation? Selling a crib? Post it here.</Empty>
+        <Empty icon={<Newspaper size={30} />} title="The board is empty">Need a recommendation? Selling a crib? Post it here.</Empty>
       )}
       <NewPost leagueId={leagueId} open={composing} onClose={() => setComposing(false)} />
     </div>

@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, Check, ChevronDown, Lightbulb, MessageCircle, Newspaper, Plus, Users } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router";
+import { AnimatePresence, motion } from "motion/react";
+import { Link, NavLink, useLocation, useNavigate, useOutlet } from "react-router";
 import { ApiError, api } from "../api";
 import { Logo } from "../components/Brand";
 import { Avatar, Spinner, cx } from "../components/ui";
@@ -64,6 +65,8 @@ export default function LeagueLayout() {
   const leagueId = useLeagueId();
   const { data: me } = useMe();
   const league = useLeague(leagueId);
+  const location = useLocation();
+  const outlet = useOutlet();
   useLeagueStream(leagueId);
   useEffect(() => rememberLeague(leagueId), [leagueId]);
 
@@ -91,7 +94,17 @@ export default function LeagueLayout() {
       </header>
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-3 pb-28 pt-4 sm:px-4">
-        <Outlet />
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18 }}
+          >
+            {outlet}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       <nav className="pb-safe fixed inset-x-0 bottom-0 z-20 border-t border-slate-200/70 bg-white/90 backdrop-blur">
@@ -110,8 +123,17 @@ export default function LeagueLayout() {
             >
               {({ isActive }) => (
                 <>
-                  <span className={cx("rounded-full px-4 py-1 transition", isActive && "bg-brand-100")}>
-                    <Icon size={20} />
+                  <span className="relative px-4 py-1">
+                    {isActive && (
+                      <motion.span
+                        layoutId="tab-pill"
+                        className="absolute inset-0 rounded-full bg-brand-100"
+                        transition={{ type: "spring", damping: 26, stiffness: 380 }}
+                      />
+                    )}
+                    <motion.span className="relative block" animate={{ scale: isActive ? 1.12 : 1 }}>
+                      <Icon size={20} />
+                    </motion.span>
                   </span>
                   {label}
                 </>

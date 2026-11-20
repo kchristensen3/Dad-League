@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, isSameDay, isToday, isYesterday } from "date-fns";
 import { Send, Trash2 } from "lucide-react";
+import { motion } from "motion/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage, Member } from "../../../shared/schemas";
 import { api } from "../api";
@@ -126,7 +127,13 @@ export function ChatThread({ leagueId, eventId, className }: { leagueId: string;
               {newDay && (
                 <p className="py-3 text-center text-[11px] font-bold uppercase tracking-wider text-slate-400">{dayLabel(d)}</p>
               )}
-              <div className={cx("group flex items-end gap-2", mine && "flex-row-reverse", !grouped && "mt-2")}>
+              <motion.div
+                initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.18 }}
+                style={{ transformOrigin: mine ? "bottom right" : "bottom left" }}
+                className={cx("group flex items-end gap-2", mine && "flex-row-reverse", !grouped && "mt-2")}
+              >
                 <div className="w-7 shrink-0">{!grouped && !mine && <Avatar user={m.author} size={28} />}</div>
                 <div className={cx("max-w-[78%]", mine && "text-right")}>
                   {!grouped && !mine && <p className="mb-0.5 ml-1 text-[11px] font-semibold text-slate-500">{m.author.name}</p>}
@@ -149,7 +156,7 @@ export function ChatThread({ leagueId, eventId, className }: { leagueId: string;
                     <Trash2 size={14} />
                   </button>
                 )}
-              </div>
+              </motion.div>
             </div>
           );
         })}
@@ -179,14 +186,15 @@ export function ChatThread({ leagueId, eventId, className }: { leagueId: string;
           aria-label="Message"
           className="flex-1 resize-none rounded-2xl border-0 bg-white px-4 py-2.5 text-[15px] ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-400"
         />
-        <button
+        <motion.button
+          whileTap={{ scale: 0.85, rotate: -12 }}
           type="submit"
           disabled={!text.trim() || send.isPending}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white disabled:opacity-40"
           aria-label="Send"
         >
           <Send size={18} />
-        </button>
+        </motion.button>
       </form>
     </div>
   );

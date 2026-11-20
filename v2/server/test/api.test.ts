@@ -202,6 +202,8 @@ describe("board and chat", () => {
       "I'll bring shoes",
     ]);
     expect((await a.json("GET", `/api/leagues/${league.id}/events/${ev.data.event.id}`)).data.event.messageCount).toBe(1);
+    const members = await a.json("GET", `/api/leagues/${league.id}/members`);
+    expect(members.data.members[0].stats).toMatchObject({ messagesSent: 2, eventsHosted: 1, eventsDeclined: 0 });
   });
 });
 

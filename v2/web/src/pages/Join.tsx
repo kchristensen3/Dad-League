@@ -4,7 +4,8 @@ import { useNavigate, useParams } from "react-router";
 import { api } from "../api";
 import { Logo } from "../components/Brand";
 import { Button, Card, ErrorNote, Spinner } from "../components/ui";
-import { useMe } from "../hooks";
+import { rememberLeague, useMe } from "../hooks";
+import { hasSeenAbout } from "./About";
 import { SignInOptions } from "./Login";
 
 /** Invite landing page: shows the league, signs you in if needed, then joins in one tap. */
@@ -18,7 +19,9 @@ export default function Join() {
     mutationFn: () => api.joinLeague(code),
     onSuccess: ({ league }) => {
       void qc.invalidateQueries({ queryKey: ["leagues"] });
-      navigate(`/l/${league.id}`, { replace: true });
+      rememberLeague(league.id);
+      // First-timers get the welcome page, which then drops them into this league.
+      navigate(hasSeenAbout() ? `/l/${league.id}` : "/about?welcome=1", { replace: true });
     },
   });
 

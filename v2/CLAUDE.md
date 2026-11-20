@@ -30,6 +30,8 @@ Deployed on Railway as one service plus a Postgres database.
 - Authorization: members can read everything in their league; authors edit their own things; the league owner can
   moderate anything (`canModify`). Non-members get 404, not 403.
 - Validate every body with a schema from `shared/schemas.ts` via `parseBody`. Never trust route params: use `uuidParam`.
+- Update (PATCH) schemas must be `.partial()` of fields WITHOUT `.default()`: in zod 4 a default still fires for an
+  omitted key, which silently blanks fields the edit didn't touch. Define fields once, add defaults only in create schemas.
 - Never edit an applied migration; generate a new one.
 - Push notifications go through `notifyLeague` and are fire-and-forget (`void`), never awaited in a request.
 - Claude calls live in `server/lib/ai.ts` and `server/lib/commissioner.ts` only. Model: `claude-opus-5-5`, structured
@@ -40,6 +42,8 @@ Deployed on Railway as one service plus a Postgres database.
   with `toInstant`, never by adding hours, so DST doesn't shift meetups.
 - Photos are re-encoded with sharp (strips EXIF/GPS) and served through `/api/leagues/:id/photos/:photoId/:size`, which
   checks membership before redirecting to a short-lived presigned URL. Never expose bucket URLs directly.
+- Google Maps calls live in `server/lib/places.ts` and go through our own routes (`/places/*`, `/events/:id/map`) so the
+  key stays server-side and only league members can spend it. Autocomplete and details share a session token.
 - Keep the UI mobile-first; most people use it as an installed PWA on their phone.
 
 ## Auth

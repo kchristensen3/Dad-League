@@ -22,7 +22,7 @@ if (env.isProd) {
 }
 
 console.log(
-  `Config: url=${env.appUrl} google=${env.googleEnabled} apple=${env.appleEnabled} ai=${env.aiEnabled} push=${env.pushEnabled} photos=${env.s3Enabled ? "bucket" : env.photosEnabled ? "local" : "off"} scheduler=${env.schedulerEnabled}`,
+  `Config: url=${env.appUrl} google=${env.googleEnabled} apple=${env.appleEnabled} ai=${env.aiEnabled} maps=${env.mapsEnabled} push=${env.pushEnabled} photos=${env.s3Enabled ? "bucket" : env.photosEnabled ? "local" : "off"} scheduler=${env.schedulerEnabled}`,
 );
 // Fail fast with a readable message if the database is unreachable, instead of hanging.
 try {

@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Pause, Play, Repeat, Trash2 } from "lucide-react";
+import { Pause, Pencil, Play, Repeat, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { motion } from "motion/react";
 import { Link } from "react-router";
 import type { Series } from "../../../shared/schemas";
 import { api } from "../api";
 import { CATEGORY_STYLE } from "../fx";
 import { useLeague, useMe } from "../hooks";
+import { SeriesForm } from "./SeriesForm";
 import { Avatar, AvatarStack, Card, cx } from "./ui";
 
 function SeriesRow({ leagueId, s }: { leagueId: string; s: Series }) {
@@ -19,6 +21,7 @@ function SeriesRow({ leagueId, s }: { leagueId: string; s: Series }) {
     void qc.invalidateQueries({ queryKey: ["events", leagueId] });
   };
   const toggle = useMutation({ mutationFn: () => api.updateSeries(leagueId, s.id, { paused: !s.paused }), onSuccess: refresh });
+  const [editing, setEditing] = useState(false);
   const remove = useMutation({ mutationFn: () => api.deleteSeries(leagueId, s.id), onSuccess: refresh });
   return (
     <li className={cx("flex gap-3 py-3", s.paused && "opacity-60")}>
@@ -27,6 +30,7 @@ function SeriesRow({ leagueId, s }: { leagueId: string; s: Series }) {
       </span>
       <div className="min-w-0 flex-1 space-y-1">
         <p className="font-bold leading-tight">{s.title}</p>
+        {s.location && <p className="truncate text-xs text-slate-500">📍 {s.location}</p>}
         <p className="flex items-center gap-1 text-xs font-semibold text-brand-600">
           <Repeat size={11} /> {s.label} · {format(new Date(`2000-01-01T${s.timeOfDay}`), "h:mm a")}
           {s.paused && <span className="ml-1 rounded-full bg-slate-100 px-1.5 text-slate-500">Paused</span>}
@@ -56,6 +60,14 @@ function SeriesRow({ leagueId, s }: { leagueId: string; s: Series }) {
       {canEdit && (
         <div className="flex flex-col gap-1">
           <button
+            onClick={() => setEditing(true)}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            aria-label="Edit"
+            title="Edit"
+          >
+            <Pencil size={16} />
+          </button>
+          <button
             onClick={() => toggle.mutate()}
             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
             aria-label={s.paused ? "Resume" : "Pause"}
@@ -73,6 +85,7 @@ function SeriesRow({ leagueId, s }: { leagueId: string; s: Series }) {
           </button>
         </div>
       )}
+      {editing && <SeriesForm leagueId={leagueId} series={s} onClose={() => setEditing(false)} />}
     </li>
   );
 }

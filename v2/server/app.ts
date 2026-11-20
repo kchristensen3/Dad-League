@@ -12,6 +12,7 @@ import { inviteRoutes, leagueRoutes } from "./routes/leagues.js";
 import { meRoutes } from "./routes/me.js";
 import { messageRoutes } from "./routes/messages.js";
 import { photoRoutes } from "./routes/photos.js";
+import { placeRoutes } from "./routes/places.js";
 import { postRoutes } from "./routes/posts.js";
 import { seriesRoutes } from "./routes/series.js";
 import { wrappedRoutes } from "./routes/wrapped.js";
@@ -39,6 +40,7 @@ export function createApp() {
   app.route("/api/leagues/:leagueId/series", seriesRoutes);
   app.route("/api/leagues/:leagueId/photos", photoRoutes);
   app.route("/api/leagues/:leagueId/wrapped", wrappedRoutes);
+  app.route("/api/leagues/:leagueId/places", placeRoutes);
   app.route("/api/leagues", leagueRoutes);
 
   app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));

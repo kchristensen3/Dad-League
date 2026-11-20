@@ -16,6 +16,39 @@ export interface PushPayload {
   tag?: string;
 }
 
+/**
+ * Sends straight to every device one user has registered, ignoring category settings.
+ * Used by "Send me a test notification". Reports what happened so the UI can explain it.
+ */
+export async function sendTestToUser(userId: string): Promise<{ devices: number; delivered: number; expired: number }> {
+  const subs = await db.select().from(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.userId, userId));
+  let delivered = 0;
+  let expired = 0;
+  const body = JSON.stringify({
+    title: "🏆 Dad League",
+    body: "Test notification. If you can read this, you're all set.",
+    url: "/me",
+    tag: "test",
+  } satisfies PushPayload);
+  await Promise.all(
+    subs.map(async (s) => {
+      try {
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, body, { TTL: 600 });
+        delivered++;
+      } catch (err) {
+        const status = (err as { statusCode?: number }).statusCode;
+        if (status === 404 || status === 410) {
+          expired++;
+          await db.delete(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.id, s.id));
+        } else {
+          console.error("test push failed", status, (err as Error).message);
+        }
+      }
+    }),
+  );
+  return { devices: subs.length, delivered, expired };
+}
+
 /** Notify specific users, respecting their per-category preferences. Never throws. */
 export async function notifyUsers(userIds: string[], category: keyof NotificationPrefs, payload: PushPayload) {
   if (!env.pushEnabled || userIds.length === 0) return;

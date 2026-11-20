@@ -120,7 +120,9 @@ export function appleDisplayName(userField: string | undefined, email: string): 
 const cookieOpts = { httpOnly: true, secure: env.isProd, sameSite: "Lax" as const, path: "/", maxAge: 600 };
 
 export const authRoutes = new Hono()
-  .get("/config", (c) => c.json({ google: env.googleEnabled, apple: env.appleEnabled, devLogin: env.DEV_LOGIN }))
+  .get("/config", (c) =>
+    c.json({ google: env.googleEnabled, apple: env.appleEnabled, devLogin: env.DEV_LOGIN, maps: env.mapsEnabled }),
+  )
 
   .get("/google", (c) => {
     if (!google) throw new HTTPException(404, { message: "Google sign-in is not configured" });

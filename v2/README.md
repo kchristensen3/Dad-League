@@ -63,6 +63,8 @@ npm run dev                   # http://localhost:5173
      Authorized redirect URI: `https://<your-domain>/auth/google/callback`
    - `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` — optional, enables Sign in with Apple (see below)
    - `ANTHROPIC_API_KEY` — optional, enables "Suggest" on the Ideas tab and the Commissioner
+   - `GOOGLE_MAPS_API_KEY` — optional, turns on place search in the location field and map previews on events.
+     In Google Cloud: enable **Places API (New)** and **Maps Static API**, create an API key, and restrict it to those two APIs.
    - `S3_BUCKET`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` (and `S3_REGION` if not `auto`) — for photos.
      Add a Storage Bucket to the project (**+ New → Bucket**) and reference its credentials here.
    - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` — optional, from `npx web-push generate-vapid-keys`
@@ -110,6 +112,5 @@ CI plus a Railway PR environment let you try it on your phone → merge → Rail
 - **Existing Firestore data.** v2 starts empty. Moving the current leagues, members, events and chat over takes a
   one-off import script run with Firebase admin credentials.
 - **Photo uploads on board posts.** Event albums have photos; board posts still take links only.
-- **Google Places autocomplete** for locations. Locations are free text and link to Google Maps.
 - **The native iOS app.** The PWA covers it, including push on iOS 16.4+ once it's added to the Home Screen.
   If App Store presence matters, Capacitor can wrap this build later.

@@ -27,3 +27,9 @@ export const userSummary = {
 };
 
 export const iso = (d: Date) => d.toISOString();
+
+/** Maps a picked place (or null to clear it) onto the place columns shared by events and series. */
+export const placeColumns = (place: { placeId: string; address: string; lat: number; lng: number } | null) =>
+  place
+    ? { placeId: place.placeId, placeAddress: place.address, lat: place.lat, lng: place.lng }
+    : { placeId: null, placeAddress: null, lat: null, lng: null };

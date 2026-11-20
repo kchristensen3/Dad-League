@@ -72,6 +72,10 @@ export async function ensureSeriesEvents(seriesId: string, now = new Date()): Pr
           category: series.category,
           description: series.description,
           location: series.location,
+          placeId: series.placeId,
+          placeAddress: series.placeAddress,
+          lat: series.lat,
+          lng: series.lng,
           url: series.url,
           startsAt,
         })

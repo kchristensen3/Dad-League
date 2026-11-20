@@ -16,6 +16,7 @@ export default defineConfig({
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/dadleague_test",
       APP_URL: "http://localhost:3000",
       UPLOAD_DIR: path.join(tmpdir(), `dadleague-test-uploads-${process.pid}`),
+      GOOGLE_MAPS_API_KEY: "test-maps-key",
       GOOGLE_CLIENT_ID: "test-client.apps.googleusercontent.com",
       GOOGLE_CLIENT_SECRET: "  test-secret\n",
       APPLE_CLIENT_ID: "app.dadleague.test",

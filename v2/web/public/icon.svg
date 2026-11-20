@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5"/>
+      <stop offset="50%" stop-color="#4338CA"/>
+      <stop offset="100%" stop-color="#312E81"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE68A"/>
+      <stop offset="50%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+    <linearGradient id="shineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="dropShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#1E1B4B" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Solid Background (No transparency for App Store) -->
+  <rect width="1024" height="1024" fill="url(#bgGrad)"/>
+
+  <!-- Subtle Ambient Glow -->
+  <circle cx="512" cy="460" r="380" fill="#6366F1" opacity="0.25" filter="blur(40px)"/>
+
+  <!-- Outer Emblem Shield Background -->
+  <g filter="url(#dropShadow)">
+    <!-- Crest Badge Shape -->
+    <path d="M512 180 L760 260 C760 520 660 680 512 760 C364 680 264 520 264 260 Z" 
+          fill="#1E1B4B" opacity="0.4" stroke="#818CF8" stroke-width="8" stroke-linejoin="round"/>
+
+    <!-- Inner Shield Accent -->
+    <path d="M512 210 L730 280 C730 500 640 645 512 720 C384 645 294 500 294 280 Z" 
+          fill="#312E81" opacity="0.7"/>
+
+    <!-- Trophy Emblem -->
+    <!-- Handles -->
+    <path d="M380 340 C310 340 280 400 280 450 C280 520 340 560 410 560" 
+          fill="none" stroke="url(#goldGrad)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M644 340 C714 340 744 400 744 450 C744 520 684 560 614 560" 
+          fill="none" stroke="url(#goldGrad)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Trophy Cup Body -->
+    <path d="M370 310 H654 L630 510 C610 580 560 620 512 620 C464 620 414 580 394 510 Z" 
+          fill="url(#goldGrad)"/>
+
+    <!-- Cup Rim & Top Lip -->
+    <rect x="350" y="290" width="324" height="32" rx="16" fill="#FEF3C7"/>
+
+    <!-- Trophy Stem / Neck -->
+    <path d="M480 620 H544 V680 H480 Z" fill="#D97706"/>
+
+    <!-- Trophy Pedestal / Base -->
+    <path d="M430 680 H594 L620 730 H404 Z" fill="#F59E0B"/>
+    <rect x="380" y="730" width="264" height="36" rx="10" fill="#FEF3C7"/>
+
+    <!-- Star on Cup -->
+    <polygon points="512,380 528,425 576,425 538,452 552,496 512,470 472,496 486,452 448,425 496,425" 
+             fill="#FFFFFF" opacity="0.95"/>
+  </g>
+</svg>

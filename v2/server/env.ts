@@ -22,8 +22,13 @@ const schema = z.object({
   VAPID_SUBJECT: z.string().default("mailto:admin@example.com"),
 });
 
-// Blank values (e.g. `GOOGLE_CLIENT_ID=` pasted from .env.example) count as unset.
-const raw = Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined && v.trim() !== ""));
+// Values are trimmed (pasted secrets often pick up a trailing space or newline), and blank
+// values (e.g. `GOOGLE_CLIENT_ID=` pasted from .env.example) count as unset.
+const raw = Object.fromEntries(
+  Object.entries(process.env)
+    .map(([k, v]) => [k, v?.trim()] as const)
+    .filter(([, v]) => v !== undefined && v !== ""),
+) as Record<string, string>;
 const result = schema.safeParse(raw);
 if (!result.success) {
   const lines = result.error.issues.map((i) => `  - ${i.path.join(".") || "(env)"}: ${i.message}`);

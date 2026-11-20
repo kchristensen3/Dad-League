@@ -1,4 +1,4 @@
-import { Apple, Google, decodeIdToken, generateCodeVerifier, generateState } from "arctic";
+import { Apple, Google, OAuth2RequestError, decodeIdToken, generateCodeVerifier, generateState } from "arctic";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -31,6 +31,27 @@ const apple = env.appleEnabled
       `${env.appUrl}/auth/apple/callback`,
     )
   : null;
+
+/**
+ * Logs why a provider sign-in failed and picks the login-page error to show:
+ * `<provider>_rejected` when the provider refused our credentials (fix the env vars),
+ * `<provider>` for anything else (see the logged error).
+ */
+function signInFailure(provider: "google" | "apple", err: unknown): string {
+  if (err instanceof OAuth2RequestError) {
+    console.error(
+      `${provider} sign-in: the provider rejected the code exchange (${err.code}${err.description ? `: ${err.description}` : ""}).`,
+      err.code === "invalid_client"
+        ? `Check ${provider === "google" ? "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET" : "the APPLE_* variables"}.`
+        : err.code === "redirect_uri_mismatch" || err.code === "invalid_grant"
+          ? `The redirect URI registered with ${provider} must be exactly ${env.appUrl}/auth/${provider}/callback`
+          : "",
+    );
+    return `/login?error=${provider}_rejected`;
+  }
+  console.error(`${provider} sign-in failed after the provider approved it:`, err);
+  return `/login?error=${provider}`;
+}
 
 /** Only allow same-site relative paths, so a crafted link can't bounce users elsewhere. */
 export function safeReturnTo(value: string | undefined | null): string {
@@ -143,8 +164,7 @@ export const authRoutes = new Hono()
       await createSession(c, user.id);
       return c.redirect(returnTo);
     } catch (err) {
-      console.error("google callback failed", err);
-      return c.redirect("/login?error=google");
+      return c.redirect(signInFailure("google", err));
     }
   })
 
@@ -185,8 +205,7 @@ export const authRoutes = new Hono()
       await createSession(c, user.id);
       return c.redirect(returnTo, 303);
     } catch (err) {
-      console.error("apple callback failed", err);
-      return c.redirect("/login?error=apple", 303);
+      return c.redirect(signInFailure("apple", err), 303);
     }
   })
 

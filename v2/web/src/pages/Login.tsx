@@ -10,8 +10,10 @@ import { useMe } from "../hooks";
 const ERRORS: Record<string, string> = {
   state: "Sign-in timed out. Please try again.",
   email: "Your Google account needs a verified email.",
-  google: "Google sign-in failed. Please try again.",
-  apple: "Sign in with Apple failed. Please try again.",
+  google: "Google approved the sign-in, but the app couldn't finish it. The server's deploy log says why.",
+  google_rejected: "Google rejected this app's sign-in settings (client ID, secret or redirect URI). The server's deploy log says which.",
+  apple: "Apple approved the sign-in, but the app couldn't finish it. The server's deploy log says why.",
+  apple_rejected: "Apple rejected this app's sign-in settings. The server's deploy log says which.",
 };
 
 export function GoogleButton({ returnTo }: { returnTo: string }) {

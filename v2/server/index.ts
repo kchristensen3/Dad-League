@@ -5,6 +5,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { sql } from "./db/client.js";
 import { env } from "./env.js";
 import { createApp } from "./app.js";
+import { runMigrations } from "./db/migrate.js";
 import { pruneExpiredSessions } from "./lib/auth.js";
 import { startRealtime } from "./lib/realtime.js";
 
@@ -38,6 +39,14 @@ try {
   })();
   console.error(`\nDad League can't reach the database at ${host}: ${(err as Error).message}`);
   console.error("Check DATABASE_URL on this service. On Railway it should be ${{Postgres.DATABASE_URL}}.\n");
+  process.exit(1);
+}
+// Railway's pre-deploy step normally does this; running it here too means a missed
+// pre-deploy (e.g. railway.json not picked up) can't leave the app without its tables.
+try {
+  await runMigrations();
+} catch (err) {
+  console.error("\nDad League can't start: database migrations failed:", (err as Error).message, "\n");
   process.exit(1);
 }
 void startRealtime();

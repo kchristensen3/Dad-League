@@ -8,8 +8,12 @@ import { db, sql } from "./client.js";
 // into the image as-is, so they're found relative to the app root in dev and in prod.
 const migrationsFolder = path.resolve(process.cwd(), "server/db/migrations");
 
+/** Idempotent. The advisory lock keeps two replicas (or pre-deploy + boot) from migrating at once. */
 export async function runMigrations() {
-  await migrate(db, { migrationsFolder });
+  await sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(727274)`;
+    await migrate(db, { migrationsFolder });
+  });
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {

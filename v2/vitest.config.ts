@@ -13,6 +13,8 @@ export default defineConfig({
       DEV_LOGIN: "true",
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/dadleague_test",
       APP_URL: "http://localhost:3000",
+      GOOGLE_CLIENT_ID: "test-client.apps.googleusercontent.com",
+      GOOGLE_CLIENT_SECRET: "  test-secret\n",
       APPLE_CLIENT_ID: "app.dadleague.test",
       APPLE_TEAM_ID: "TEAMID1234",
       APPLE_KEY_ID: "KEYID12345",

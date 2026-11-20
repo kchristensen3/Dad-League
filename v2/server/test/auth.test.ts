@@ -1,5 +1,5 @@
 import { createPrivateKey, generateKeyPairSync } from "node:crypto";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { sql } from "../db/client.js";
 import { appleDisplayName, applePrivateKeyBytes, signInWithProvider } from "../routes/auth.js";
 import { anonymous } from "./helpers.js";
@@ -60,6 +60,56 @@ describe("Sign in with Apple", () => {
     expect(appleDisplayName(JSON.stringify({ name: { firstName: "Jeff", lastName: "Smith" } }), "j@x.com")).toBe("Jeff Smith");
     expect(appleDisplayName(undefined, "abc123@privaterelay.appleid.com")).toBe("New member");
     expect(appleDisplayName("not json", "jeff@example.com")).toBe("jeff");
+  });
+});
+
+describe("Google sign-in failures", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const callback = () =>
+    anonymous("GET", "/auth/google/callback?code=c0de&state=s1", {
+      headers: { cookie: "dl_oauth_state=s1; dl_oauth_verifier=v1; dl_return_to=/" },
+    });
+
+  it("sends trimmed credentials and the exact redirect URI to Google", async () => {
+    let body = "";
+    let auth = "";
+    vi.stubGlobal("fetch", async (input: RequestInfo, init?: RequestInit) => {
+      const req = new Request(input, init);
+      body = await req.text();
+      auth = req.headers.get("authorization") ?? "";
+      return new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400 });
+    });
+    await callback();
+    expect(new URLSearchParams(body).get("redirect_uri")).toBe("http://localhost:3000/auth/google/callback");
+    const creds = Buffer.from(auth.replace(/^Basic /, ""), "base64").toString();
+    expect(creds).toBe("test-client.apps.googleusercontent.com:test-secret");
+  });
+
+  it("tells the user Google rejected the app's settings when the secret is wrong", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ error: "invalid_client" }), { status: 401 }));
+    const res = await callback();
+    expect(res.headers.get("location")).toBe("/login?error=google_rejected");
+    expect(log.mock.calls.flat().join(" ")).toMatch(/invalid_client.*GOOGLE_CLIENT_SECRET/s);
+    log.mockRestore();
+  });
+
+  it("signs the user in when Google accepts", async () => {
+    const payload = Buffer.from(
+      JSON.stringify({ sub: `g-${Date.now()}`, email: `ok-${Date.now()}@example.com`, email_verified: true, name: "Pat" }),
+    ).toString("base64url");
+    const idToken = `eyJhbGciOiJub25lIn0.${payload}.sig`;
+    vi.stubGlobal("fetch", async () =>
+      new Response(JSON.stringify({ access_token: "a", token_type: "Bearer", expires_in: 3600, id_token: idToken }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const res = await callback();
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/");
+    expect(res.headers.get("set-cookie")).toMatch(/dl_session=/);
   });
 });
 

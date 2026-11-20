@@ -9,6 +9,7 @@ import { ChatThread } from "../components/ChatThread";
 import { DateTile, RsvpButtons, whenLabel } from "../components/EventCard";
 import { CATEGORY_STYLE } from "../fx";
 import { EventForm } from "../components/EventForm";
+import { MapCard } from "../components/MapCard";
 import { PhotoSection } from "../components/Photos";
 import { Avatar, Card, ErrorNote, Pill, Sheet, Spinner } from "../components/ui";
 import { useDocumentTitle, useLeague, useLeagueId, useMe, useMembers } from "../hooks";
@@ -167,9 +168,11 @@ export default function EventDetail() {
           </div>
         </div>
 
-        {(e.location || e.url) && (
+        {e.place && <MapCard leagueId={leagueId} event={{ ...e, place: e.place }} />}
+
+        {((e.location && !e.place) || e.url) && (
           <div className="space-y-2 text-sm">
-            {e.location && (
+            {e.location && !e.place && (
               <a href={mapsHref!} target="_blank" rel="noreferrer" className="flex items-start gap-2 text-slate-700 hover:text-brand-600">
                 <MapPin size={16} className="mt-0.5 shrink-0 text-slate-400" /> {e.location}
               </a>

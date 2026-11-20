@@ -4,7 +4,7 @@ import { z } from "zod";
 import { type Series, createSeriesSchema } from "../../shared/schemas.js";
 import { db, schema } from "../db/client.js";
 import { forbidden, notFound, uuidParam } from "../lib/access.js";
-import { iso, parseBody, userSummary } from "../lib/http.js";
+import { iso, parseBody, placeColumns, userSummary } from "../lib/http.js";
 import { publish } from "../lib/realtime.js";
 import { describeRule } from "../lib/recurrence.js";
 import { deleteFutureSeriesEvents, ensureSeriesEvents, pickHost } from "../lib/series.js";
@@ -69,12 +69,12 @@ export const seriesRoutes = scopedRouter()
   .get("/", async (c) => c.json({ series: await listSeries(c.var.leagueId) }))
 
   .post("/", async (c) => {
-    const body = await parseBody(c, createSeriesSchema);
+    const { place, ...body } = await parseBody(c, createSeriesSchema);
     const rotation = [...new Set(body.hostRotation)];
     await assertMembers(c.var.leagueId, rotation);
     const [created] = await db
       .insert(schema.eventSeries)
-      .values({ ...body, hostRotation: rotation, leagueId: c.var.leagueId, createdBy: c.var.user.id })
+      .values({ ...body, ...placeColumns(place ?? null), hostRotation: rotation, leagueId: c.var.leagueId, createdBy: c.var.user.id })
       .returning();
     const eventIds = await ensureSeriesEvents(created!.id);
     await publish({ leagueId: c.var.leagueId, kind: "series" });

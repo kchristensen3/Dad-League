@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -105,6 +106,11 @@ export const eventSeries = pgTable(
     category: text("category").notNull(),
     description: text("description").notNull().default(""),
     location: text("location"),
+    /** Set when the location was picked from map search: Google place id, street address and coordinates. */
+    placeId: text("place_id"),
+    placeAddress: text("place_address"),
+    lat: doublePrecision("lat"),
+    lng: doublePrecision("lng"),
     url: text("url"),
     rule: jsonb("rule").$type<RepeatRule>().notNull(),
     /** Local wall-clock time, "HH:MM", in `timezone`. */
@@ -135,6 +141,11 @@ export const events = pgTable(
     category: text("category").notNull(),
     description: text("description").notNull().default(""),
     location: text("location"),
+    /** Set when the location was picked from map search: Google place id, street address and coordinates. */
+    placeId: text("place_id"),
+    placeAddress: text("place_address"),
+    lat: doublePrecision("lat"),
+    lng: doublePrecision("lng"),
     url: text("url"),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),

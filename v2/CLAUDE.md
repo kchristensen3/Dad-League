@@ -40,6 +40,8 @@ Deployed on Railway as one service plus a Postgres database.
   with `toInstant`, never by adding hours, so DST doesn't shift meetups.
 - Photos are re-encoded with sharp (strips EXIF/GPS) and served through `/api/leagues/:id/photos/:photoId/:size`, which
   checks membership before redirecting to a short-lived presigned URL. Never expose bucket URLs directly.
+- Google Maps calls live in `server/lib/places.ts` and go through our own routes (`/places/*`, `/events/:id/map`) so the
+  key stays server-side and only league members can spend it. Autocomplete and details share a session token.
 - Keep the UI mobile-first; most people use it as an installed PWA on their phone.
 
 ## Auth

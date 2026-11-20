@@ -226,3 +226,11 @@ describe("scheduled jobs", () => {
     expect(s2!.reminderSentAt!.getTime()).toBe(before);
   });
 });
+
+describe("test notification", () => {
+  it("explains when no device is signed up (push is off in tests)", async () => {
+    const a = await TestUser.create();
+    const res = await a.json("POST", "/api/me/push/test");
+    expect(res.status).toBe(503);
+  });
+});

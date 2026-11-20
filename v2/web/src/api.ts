@@ -8,6 +8,9 @@ import type {
   Me,
   Member,
   Photo,
+  PlaceDetails,
+  PlaceInput,
+  PlaceSuggestion,
   Post,
   RepeatRule,
   Series,
@@ -41,7 +44,7 @@ const del = <T>(p: string) => request<T>("DELETE", p);
 const L = (leagueId: string) => `/api/leagues/${leagueId}`;
 
 export const api = {
-  authConfig: () => get<{ google: boolean; apple: boolean; devLogin: boolean }>("/auth/config"),
+  authConfig: () => get<{ google: boolean; apple: boolean; devLogin: boolean; maps: boolean }>("/auth/config"),
   devLogin: (email: string, name?: string) => post("/auth/dev", { email, name }),
   logout: () => post("/auth/logout"),
 
@@ -51,6 +54,7 @@ export const api = {
   deleteMe: () => del("/api/me"),
   pushConfig: () => get<{ enabled: boolean; publicKey: string | null }>("/api/me/push"),
   savePushSubscription: (sub: PushSubscriptionJSON) => post("/api/me/push", sub),
+  testPush: () => post<{ devices: number; delivered: number; expired: number }>("/api/me/push/test"),
 
   invite: (code: string) =>
     get<{ invite: { name: string; description: string; memberCount: number } }>(`/api/invites/${encodeURIComponent(code)}`).then(
@@ -131,6 +135,17 @@ export const api = {
   wrapped: (id: string, year?: number) =>
     get<{ wrapped: Wrapped }>(`${L(id)}/wrapped${year ? `?year=${year}` : ""}`).then((r) => r.wrapped),
 
+  placeSuggestions: (id: string, q: string, session: string, signal?: AbortSignal) =>
+    fetch(`${L(id)}/places/autocomplete?q=${encodeURIComponent(q)}&session=${session}`, { signal, credentials: "same-origin" }).then(
+      async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new ApiError(r.status, (data as { error?: string }).error ?? "Search failed");
+        return (data as { suggestions: PlaceSuggestion[] }).suggestions;
+      },
+    ),
+  placeDetails: (id: string, placeId: string, session: string) =>
+    get<{ place: PlaceDetails }>(`${L(id)}/places/${encodeURIComponent(placeId)}?session=${session}`).then((r) => r.place),
+
   askCommissioner: (id: string) => post<{ ok: boolean }>(`${L(id)}/messages/commissioner`),
   acceptProposal: (id: string, messageId: string) =>
     post<{ eventId: string; alreadyAccepted: boolean }>(`${L(id)}/messages/${messageId}/accept`),
@@ -151,6 +166,7 @@ export interface EventInput {
   category: EventItem["category"];
   description: string;
   location: string | null;
+  place?: PlaceInput | null;
   url: string | null;
   startsAt: string;
 }
@@ -160,6 +176,7 @@ export interface SeriesInput {
   category: EventItem["category"];
   description: string;
   location: string | null;
+  place?: PlaceInput | null;
   url: string | null;
   rule: RepeatRule;
   timeOfDay: string;

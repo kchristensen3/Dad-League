@@ -78,6 +78,15 @@ export const updateIdeaSchema = createIdeaSchema.partial().extend({
   archived: z.boolean().optional(),
 });
 
+/** A location picked from map search. Absent/null means free-text location only. */
+export const placeSchema = z.object({
+  placeId: z.string().min(1).max(300),
+  address: trimmed(300),
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+});
+export type PlaceInput = z.infer<typeof placeSchema>;
+
 export const createEventSchema = z.object({
   title: trimmed(120).min(1),
   category: categorySchema,
@@ -86,6 +95,7 @@ export const createEventSchema = z.object({
   url: httpUrl.optional().nullable().transform((v) => v ?? null),
   startsAt: z.iso.datetime({ offset: true }),
   ideaId: z.uuid().optional().nullable(),
+  place: placeSchema.nullable().optional(),
 });
 export const updateEventSchema = createEventSchema.omit({ ideaId: true }).partial().extend({
   cancelled: z.boolean().optional(),
@@ -108,6 +118,7 @@ export const createSeriesSchema = z.object({
   timeOfDay: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM"),
   timezone: timezoneSchema,
   startsOn: z.iso.date(),
+  place: placeSchema.nullable().optional(),
   hostRotation: z.array(z.uuid()).max(50).default([]),
 });
 
@@ -217,6 +228,7 @@ export interface EventItem {
   startsAt: string;
   cancelled: boolean;
   ideaId: string | null;
+  place: { placeId: string; address: string; lat: number; lng: number } | null;
   series: { id: string; label: string } | null;
   host: UserSummary;
   going: UserSummary[];
@@ -224,6 +236,20 @@ export interface EventItem {
   myRsvp: "going" | "not_going" | null;
   messageCount: number;
   photoCount: number;
+}
+
+export interface PlaceSuggestion {
+  placeId: string;
+  name: string;
+  address: string;
+}
+
+export interface PlaceDetails {
+  placeId: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
 }
 
 export interface Series {

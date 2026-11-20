@@ -1,6 +1,6 @@
 import { Loader2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { type ButtonHTMLAttributes, type ReactNode, useEffect } from "react";
+import { type ButtonHTMLAttributes, type ReactNode, useEffect, useId } from "react";
 import { createPortal } from "react-dom";
 import type { UserSummary } from "../../../shared/schemas";
 
@@ -175,13 +175,21 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
 const inputCls =
   "w-full rounded-xl border-0 bg-slate-50 px-3 py-2.5 text-sm ring-1 ring-slate-200 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-brand-400 focus:outline-none";
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+/**
+ * A labeled form field. Pass `group` for composite controls (e.g. a search box with a suggestion
+ * list): those get a div with aria-labelledby instead of a wrapping <label>.
+ */
+export function Field({ label, hint, children, group }: { label: string; hint?: string; children: ReactNode; group?: boolean }) {
+  const id = useId();
+  const Wrapper = group ? "div" : "label";
   return (
-    <label className="block space-y-1">
-      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+    <Wrapper className="block space-y-1" {...(group ? { role: "group", "aria-labelledby": id } : {})}>
+      <span id={id} className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </span>
       {children}
       {hint && <span className="block text-xs text-slate-400">{hint}</span>}
-    </label>
+    </Wrapper>
   );
 }
 

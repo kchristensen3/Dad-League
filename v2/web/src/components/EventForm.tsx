@@ -4,9 +4,10 @@ import { Repeat } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { CATEGORIES, type Category, type EventItem, type RepeatRule } from "../../../shared/schemas";
+import { CATEGORIES, type Category, type EventItem, type PlaceInput, type RepeatRule } from "../../../shared/schemas";
 import { api, browserTimezone } from "../api";
 import { useLeague, useMe, useMembers } from "../hooks";
+import { LocationInput } from "./LocationInput";
 import { Avatar, Button, ErrorNote, Field, Input, Select, Sheet, Textarea, cx } from "./ui";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -67,6 +68,7 @@ export function EventForm({
   const [date, setDate] = useState(format(start, "yyyy-MM-dd"));
   const [time, setTime] = useState(format(start, "HH:mm"));
   const [location, setLocation] = useState(existing?.location ?? draft?.location ?? "");
+  const [place, setPlace] = useState<PlaceInput | null>(existing?.place ?? null);
   const [url, setUrl] = useState(existing?.url ?? "");
   const [description, setDescription] = useState(existing?.description ?? draft?.description ?? "");
   const [repeatKey, setRepeatKey] = useState("none");
@@ -92,6 +94,7 @@ export function EventForm({
         category,
         description,
         location: location || null,
+        place,
         url: url || null,
         rule: repeat.rule!,
         timeOfDay: time,
@@ -114,6 +117,7 @@ export function EventForm({
         category,
         description,
         location: location || null,
+        place,
         url: url || null,
         startsAt: new Date(`${date}T${time}`).toISOString(),
       };
@@ -215,8 +219,16 @@ export function EventForm({
             ))}
           </Select>
         </Field>
-        <Field label="Where">
-          <Input maxLength={200} value={location ?? ""} onChange={(e) => setLocation(e.target.value)} placeholder="Venue or address" />
+        <Field label="Where" group>
+          <LocationInput
+            leagueId={leagueId}
+            value={location ?? ""}
+            place={place}
+            onChange={(text, picked) => {
+              setLocation(text);
+              setPlace(picked);
+            }}
+          />
         </Field>
         <Field label="Link" hint="Tickets, menu, tee time…">
           <Input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" />

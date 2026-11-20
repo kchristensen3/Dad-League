@@ -6,7 +6,7 @@ import type { Me, NotificationPrefs } from "../../../shared/schemas";
 import { api } from "../api";
 import { Avatar, Button, Card, ErrorNote, Field, Input, Pill } from "../components/ui";
 import { lastLeague, useDocumentTitle, useMe } from "../hooks";
-import { enablePush } from "../push";
+import { enablePush, sendTestNotification } from "../push";
 
 const PREF_LABELS: Record<keyof NotificationPrefs, string> = {
   events: "New and cancelled events",
@@ -81,7 +81,7 @@ function ProfileForm({ me }: { me: Me }) {
 function Notifications({ me }: { me: Me }) {
   const qc = useQueryClient();
   const [status, setStatus] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"on" | "test" | null>(null);
   const toggle = useMutation({
     mutationFn: (key: keyof NotificationPrefs) =>
       api.updateMe({ notificationPrefs: { ...me.notificationPrefs, [key]: !me.notificationPrefs[key] } }),
@@ -90,23 +90,42 @@ function Notifications({ me }: { me: Me }) {
   return (
     <Card className="space-y-3">
       <h2 className="flex items-center gap-2 font-bold"><Bell size={18} className="text-brand-500" /> Notifications</h2>
-      <Button
-        variant="secondary"
-        className="w-full"
-        loading={busy}
-        onClick={async () => {
-          setBusy(true);
-          try {
-            setStatus(await enablePush());
-          } catch (e) {
-            setStatus(e instanceof Error ? e.message : "Couldn't turn on notifications");
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        Turn on for this device
-      </Button>
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          variant="secondary"
+          loading={busy === "on"}
+          disabled={busy !== null}
+          onClick={async () => {
+            setBusy("on");
+            try {
+              setStatus((await enablePush()).message);
+            } catch (e) {
+              setStatus(e instanceof Error ? e.message : "Couldn't turn on notifications");
+            } finally {
+              setBusy(null);
+            }
+          }}
+        >
+          Turn on for this device
+        </Button>
+        <Button
+          variant="secondary"
+          loading={busy === "test"}
+          disabled={busy !== null}
+          onClick={async () => {
+            setBusy("test");
+            try {
+              setStatus(await sendTestNotification());
+            } catch (e) {
+              setStatus(e instanceof Error ? e.message : "Couldn't send a test notification");
+            } finally {
+              setBusy(null);
+            }
+          }}
+        >
+          Send me a test
+        </Button>
+      </div>
       {status && <p className="text-sm text-slate-600">{status}</p>}
       <ul className="divide-y divide-slate-100">
         {(Object.keys(PREF_LABELS) as (keyof NotificationPrefs)[]).map((k) => (

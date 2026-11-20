@@ -116,8 +116,13 @@ export const api = {
   series: (id: string) => get<{ series: Series[] }>(`${L(id)}/series`).then((r) => r.series),
   createSeries: (id: string, body: SeriesInput) =>
     post<{ series: Series; firstEventId: string | null }>(`${L(id)}/series`, body),
-  updateSeries: (id: string, seriesId: string, body: { paused?: boolean; hostRotation?: string[] }) =>
-    patch<{ series: Series }>(`${L(id)}/series/${seriesId}`, body).then((r) => r.series),
+  updateSeries: (
+    id: string,
+    seriesId: string,
+    body: Partial<Pick<SeriesInput, "title" | "category" | "description" | "location" | "place" | "url" | "timeOfDay" | "hostRotation">> & {
+      paused?: boolean;
+    },
+  ) => patch<{ series: Series; changedDates: number }>(`${L(id)}/series/${seriesId}`, body),
   deleteSeries: (id: string, seriesId: string) => del(`${L(id)}/series/${seriesId}`),
 
   photos: (id: string, eventId: string) =>

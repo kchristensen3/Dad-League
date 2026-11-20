@@ -1,63 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4F46E5"/>
-      <stop offset="50%" stop-color="#4338CA"/>
-      <stop offset="100%" stop-color="#312E81"/>
-    </linearGradient>
-    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FDE68A"/>
-      <stop offset="50%" stop-color="#F59E0B"/>
-      <stop offset="100%" stop-color="#D97706"/>
-    </linearGradient>
-    <linearGradient id="shineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.2"/>
-      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
-    </linearGradient>
-    <filter id="dropShadow" x="-10%" y="-10%" width="120%" height="130%">
-      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#1E1B4B" flood-opacity="0.5"/>
-    </filter>
-  </defs>
-
-  <!-- Solid Background (No transparency for App Store) -->
-  <rect width="1024" height="1024" fill="url(#bgGrad)"/>
-
-  <!-- Subtle Ambient Glow -->
-  <circle cx="512" cy="460" r="380" fill="#6366F1" opacity="0.25" filter="blur(40px)"/>
-
-  <!-- Outer Emblem Shield Background -->
-  <g filter="url(#dropShadow)">
-    <!-- Crest Badge Shape -->
-    <path d="M512 180 L760 260 C760 520 660 680 512 760 C364 680 264 520 264 260 Z" 
-          fill="#1E1B4B" opacity="0.4" stroke="#818CF8" stroke-width="8" stroke-linejoin="round"/>
-
-    <!-- Inner Shield Accent -->
-    <path d="M512 210 L730 280 C730 500 640 645 512 720 C384 645 294 500 294 280 Z" 
-          fill="#312E81" opacity="0.7"/>
-
-    <!-- Trophy Emblem -->
-    <!-- Handles -->
-    <path d="M380 340 C310 340 280 400 280 450 C280 520 340 560 410 560" 
-          fill="none" stroke="url(#goldGrad)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M644 340 C714 340 744 400 744 450 C744 520 684 560 614 560" 
-          fill="none" stroke="url(#goldGrad)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
-
-    <!-- Trophy Cup Body -->
-    <path d="M370 310 H654 L630 510 C610 580 560 620 512 620 C464 620 414 580 394 510 Z" 
-          fill="url(#goldGrad)"/>
-
-    <!-- Cup Rim & Top Lip -->
-    <rect x="350" y="290" width="324" height="32" rx="16" fill="#FEF3C7"/>
-
-    <!-- Trophy Stem / Neck -->
-    <path d="M480 620 H544 V680 H480 Z" fill="#D97706"/>
-
-    <!-- Trophy Pedestal / Base -->
-    <path d="M430 680 H594 L620 730 H404 Z" fill="#F59E0B"/>
-    <rect x="380" y="730" width="264" height="36" rx="10" fill="#FEF3C7"/>
-
-    <!-- Star on Cup -->
-    <polygon points="512,380 528,425 576,425 538,452 552,496 512,470 472,496 486,452 448,425 496,425" 
-             fill="#FFFFFF" opacity="0.95"/>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512"><defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fbd38d"/><stop offset="0.5" stop-color="#f6b352"/><stop offset="1" stop-color="#d9822b"/></linearGradient>
+    <g id="trophy">
+      <path d="M176 136 C116 136 112 230 186 250" fill="none" stroke="url(#gold)" stroke-width="20" stroke-linecap="round"/>
+      <path d="M336 136 C396 136 400 230 326 250" fill="none" stroke="url(#gold)" stroke-width="20" stroke-linecap="round"/>
+      <path d="M168 112 H344 V196 C344 256 304 290 256 290 C208 290 168 256 168 196 Z" fill="url(#gold)"/>
+      <path d="M190 124 V196 C190 232 210 256 236 266" fill="none" stroke="#fff" stroke-opacity="0.35" stroke-width="10" stroke-linecap="round"/>
+      <path d="M256 150 l10 20 22 3.2 -16 15.6 3.8 22 -19.8 -10.4 -19.8 10.4 3.8 -22 -16 -15.6 22 -3.2z" fill="#326273"/>
+      <path d="M236 288 H276 L282 340 H230 Z" fill="#d9822b"/>
+      <rect x="196" y="336" width="120" height="26" rx="6" fill="#f6efe2"/>
+      <rect x="176" y="358" width="160" height="50" rx="10" fill="#f6efe2"/>
+      <rect x="204" y="374" width="104" height="18" rx="4" fill="#e8913a"/>
+    </g></defs><rect width="512" height="512" fill="#326273"/>
+    <use xlink:href="#trophy" transform="translate(262 262) rotate(-12) scale(0.98) translate(-256 -260)"/>
+    <polygon points="118.0,130.0 123.3,142.7 137.0,143.8 126.6,152.8 129.8,166.2 118.0,159.0 106.2,166.2 109.4,152.8 99.0,143.8 112.7,142.7" fill="#f6efe2"/><polygon points="402.0,106.0 405.7,114.9 415.3,115.7 408.0,121.9 410.2,131.3 402.0,126.3 393.8,131.3 396.0,121.9 388.7,115.7 398.3,114.9" fill="#f6b352"/><polygon points="396.0,319.0 398.9,326.0 406.5,326.6 400.7,331.5 402.5,338.9 396.0,334.9 389.5,338.9 391.3,331.5 385.5,326.6 393.1,326.0" fill="#f6efe2"/>
+  </svg>

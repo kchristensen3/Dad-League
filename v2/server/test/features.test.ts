@@ -234,3 +234,59 @@ describe("test notification", () => {
     expect(res.status).toBe(503);
   });
 });
+
+describe("editing standing meetups", () => {
+  it("updates upcoming dates but keeps one-off changes", async () => {
+    const a = await TestUser.create("Ann");
+    const b = await TestUser.create("Bob");
+    const league = await leagueWith(a, b);
+    const base = `/api/leagues/${league.id}`;
+    const created = await a.json("POST", `${base}/series`, {
+      title: "Trivia", category: "Games & Trivia", location: "Old bar",
+      rule: { freq: "weekly", weekday: new Date().getUTCDay() }, timeOfDay: "19:00", timezone: "America/Detroit",
+      startsOn: dayString(inDays(1)), hostRotation: [],
+    });
+    const seriesId = created.data.series.id;
+    const [first, second] = (await a.json("GET", `${base}/events`)).data.events;
+    // Someone moves just the second date somewhere else.
+    await a.json("PATCH", `${base}/events/${second.id}`, { location: "Jeff's garage" });
+
+    expect((await b.req("PATCH", `${base}/series/${seriesId}`, { location: "x" })).status).toBe(403);
+
+    const place = { placeId: "ChIJEasternMarketBrew01", address: "2515 Riopelle St, Detroit, MI", lat: 42.3478, lng: -83.0412 };
+    const res = await a.json("PATCH", `${base}/series/${seriesId}`, {
+      location: "Eastern Market Brewing Co.", place, timeOfDay: "20:00", description: "Bring a pencil",
+    });
+    expect(res.status).toBe(200);
+    expect(res.data).toMatchObject({ changedDates: 2, series: { location: "Eastern Market Brewing Co.", timeOfDay: "20:00", place: { placeId: place.placeId } } });
+
+    const local = (iso: string) => new Intl.DateTimeFormat("en-US", { timeZone: "America/Detroit", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
+    const e1 = (await a.json("GET", `${base}/events/${first.id}`)).data.event;
+    const e2 = (await a.json("GET", `${base}/events/${second.id}`)).data.event;
+    expect(e1).toMatchObject({ location: "Eastern Market Brewing Co.", description: "Bring a pencil", place: { placeId: place.placeId } });
+    expect(local(e1.startsAt)).toBe("8:00 PM");
+    expect(e2).toMatchObject({ location: "Jeff's garage", place: null, description: "Bring a pencil" });
+    expect(local(e2.startsAt)).toBe("8:00 PM");
+  });
+});
+
+describe("partial edits keep untouched fields", () => {
+  it("doesn't blank descriptions when cancelling, archiving or toggling settings", async () => {
+    const a = await TestUser.create();
+    const created = await a.json("POST", "/api/leagues", { name: "Keepers", description: "Weekend hangs" });
+    const id = created.data.league.id;
+    const off = await a.json("PATCH", `/api/leagues/${id}`, { commissionerEnabled: false });
+    expect(off.data.league.description).toBe("Weekend hangs");
+
+    const idea = await a.json("POST", `/api/leagues/${id}/ideas`, { title: "Golf", category: "Outdoors", description: "Nine holes", aiSuggested: true });
+    const archived = await a.json("PATCH", `/api/leagues/${id}/ideas/${idea.data.idea.id}`, { archived: true });
+    expect(archived.data.idea).toMatchObject({ description: "Nine holes", aiSuggested: true, archived: true });
+
+    const ev = await a.json("POST", `/api/leagues/${id}/events`, {
+      title: "Poker", category: "Games & Trivia", description: "Bring chips", location: "Garage", url: "https://example.com/x",
+      startsAt: inDays(3).toISOString(),
+    });
+    const cancelled = await a.json("PATCH", `/api/leagues/${id}/events/${ev.data.event.id}`, { cancelled: true });
+    expect(cancelled.data.event).toMatchObject({ cancelled: true, description: "Bring chips", location: "Garage", url: "https://example.com/x" });
+  });
+});

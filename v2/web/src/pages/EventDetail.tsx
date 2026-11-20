@@ -11,6 +11,7 @@ import { CATEGORY_STYLE } from "../fx";
 import { EventForm } from "../components/EventForm";
 import { MapCard } from "../components/MapCard";
 import { PhotoSection } from "../components/Photos";
+import { SeriesForm } from "../components/SeriesForm";
 import { Avatar, Card, ErrorNote, Pill, Sheet, Spinner } from "../components/ui";
 import { useDocumentTitle, useLeague, useLeagueId, useMe, useMembers } from "../hooks";
 
@@ -85,7 +86,9 @@ export default function EventDetail() {
   const [editing, setEditing] = useState(false);
   const [menu, setMenu] = useState(false);
   const [handingOff, setHandingOff] = useState(false);
+  const [editingSeries, setEditingSeries] = useState(false);
   const q = useQuery({ queryKey: ["event", leagueId, eventId], queryFn: () => api.event(leagueId, eventId) });
+  const seriesList = useQuery({ queryKey: ["series", leagueId], queryFn: () => api.series(leagueId), enabled: Boolean(q.data?.series) });
   useDocumentTitle(q.data?.title ?? "Event");
 
   const cancel = useMutation({
@@ -104,6 +107,8 @@ export default function EventDetail() {
   if (q.error || !q.data) return <ErrorNote error={q.error ?? "Event not found"} />;
   const e = q.data;
   const canEdit = e.host.id === me?.id || league.data?.role === "owner";
+  const series = e.series ? seriesList.data?.find((x) => x.id === e.series!.id) : undefined;
+  const canEditSeries = Boolean(series && (series.createdBy === me?.id || league.data?.role === "owner"));
   const past = new Date(e.startsAt).getTime() < Date.now() - 6 * 3600_000;
   const mapsHref = e.location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}` : null;
 
@@ -113,7 +118,7 @@ export default function EventDetail() {
         <Link to={`/l/${leagueId}`} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-500 hover:text-slate-800">
           <ArrowLeft size={16} /> Calendar
         </Link>
-        {canEdit && (
+        {(canEdit || canEditSeries) && (
           <div className="relative">
             <button onClick={() => setMenu((m) => !m)} className="rounded-full p-2 text-slate-500 hover:bg-slate-200" aria-label="Event options">
               <MoreHorizontal size={18} />
@@ -122,8 +127,15 @@ export default function EventDetail() {
               <>
                 <div className="fixed inset-0 z-30" onClick={() => setMenu(false)} />
                 <div className="absolute right-0 z-40 w-48 rounded-2xl bg-white p-1 text-sm shadow-lg ring-1 ring-slate-200">
+                  {canEditSeries && (
+                    <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 hover:bg-slate-50" onClick={() => (setMenu(false), setEditingSeries(true))}>
+                      <Repeat size={16} /> Edit standing meetup
+                    </button>
+                  )}
+                  {canEdit && (
+                    <>
                   <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 hover:bg-slate-50" onClick={() => (setMenu(false), setEditing(true))}>
-                    <Pencil size={16} /> Edit details
+                    <Pencil size={16} /> {e.series ? "Edit just this date" : "Edit details"}
                   </button>
                   <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 hover:bg-slate-50" onClick={() => (setMenu(false), setHandingOff(true))}>
                     <Mic size={16} /> Hand off hosting
@@ -140,6 +152,8 @@ export default function EventDetail() {
                   >
                     <Trash2 size={16} /> Delete
                   </button>
+                    </>
+                  )}
                 </div>
               </>
             )}
@@ -231,6 +245,7 @@ export default function EventDetail() {
 
       {editing && <EventForm leagueId={leagueId} open existing={e} onClose={() => setEditing(false)} />}
       {handingOff && <HandOff leagueId={leagueId} event={e} onClose={() => setHandingOff(false)} />}
+      {editingSeries && series && <SeriesForm leagueId={leagueId} series={series} onClose={() => setEditingSeries(false)} />}
     </div>
   );
 }

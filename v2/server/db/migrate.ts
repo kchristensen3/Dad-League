@@ -16,7 +16,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   runMigrations()
     .then(() => console.log("migrations applied"))
     .catch((err) => {
-      console.error(err);
+      console.error("Migrations failed:", err instanceof Error ? err.message : err);
       process.exitCode = 1;
     })
     .finally(() => sql.end());

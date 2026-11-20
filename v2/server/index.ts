@@ -19,7 +19,28 @@ if (env.isProd) {
   app.get("*", (c) => c.html(indexHtml));
 }
 
-await startRealtime();
+console.log(
+  `Config: url=${env.appUrl} google=${env.googleEnabled} apple=${env.appleEnabled} ai=${env.aiEnabled} push=${env.pushEnabled}`,
+);
+// Fail fast with a readable message if the database is unreachable, instead of hanging.
+try {
+  await Promise.race([
+    sql`select 1`,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("timed out after 15s")), 15_000)),
+  ]);
+} catch (err) {
+  const host = (() => {
+    try {
+      return new URL(env.DATABASE_URL).host;
+    } catch {
+      return "(unparseable DATABASE_URL)";
+    }
+  })();
+  console.error(`\nDad League can't reach the database at ${host}: ${(err as Error).message}`);
+  console.error("Check DATABASE_URL on this service. On Railway it should be ${{Postgres.DATABASE_URL}}.\n");
+  process.exit(1);
+}
+void startRealtime();
 const server = serve({ fetch: app.fetch, port: env.PORT, hostname: "0.0.0.0" }, (info) =>
   console.log(`Dad League listening on :${info.port} (${env.NODE_ENV})`),
 );

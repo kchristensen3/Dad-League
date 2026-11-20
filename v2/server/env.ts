@@ -22,7 +22,32 @@ const schema = z.object({
   VAPID_SUBJECT: z.string().default("mailto:admin@example.com"),
 });
 
-const parsed = schema.parse(process.env);
+// Blank values (e.g. `GOOGLE_CLIENT_ID=` pasted from .env.example) count as unset.
+const raw = Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined && v.trim() !== ""));
+const result = schema.safeParse(raw);
+if (!result.success) {
+  const lines = result.error.issues.map((i) => `  - ${i.path.join(".") || "(env)"}: ${i.message}`);
+  console.error(`\nDad League can't start: these environment variables are invalid.\n${lines.join("\n")}\n`);
+  process.exit(1);
+}
+const parsed = result.data;
+
+const problems: string[] = [];
+if (parsed.NODE_ENV === "production") {
+  if (!raw.DATABASE_URL) problems.push("DATABASE_URL is not set. On Railway, set it to ${{Postgres.DATABASE_URL}}.");
+  else if (/@(localhost|127\.0\.0\.1)[:/]/.test(parsed.DATABASE_URL)) {
+    problems.push("DATABASE_URL points at localhost (copied from .env.example?). On Railway, use ${{Postgres.DATABASE_URL}}.");
+  }
+  if (parsed.APP_URL && !parsed.APP_URL.startsWith("https://")) problems.push("APP_URL must start with https://");
+}
+if (problems.length) {
+  console.error(`\nDad League can't start:\n${problems.map((p) => `  - ${p}`).join("\n")}\n`);
+  process.exit(1);
+}
+if (parsed.NODE_ENV === "production" && parsed.DEV_LOGIN) {
+  console.warn("DEV_LOGIN is ignored in production. Remove it from this service's variables.");
+  parsed.DEV_LOGIN = false;
+}
 
 export const env = {
   ...parsed,
@@ -38,6 +63,3 @@ export const env = {
   pushEnabled: Boolean(parsed.VAPID_PUBLIC_KEY && parsed.VAPID_PRIVATE_KEY),
 };
 
-if (env.isProd && env.DEV_LOGIN) {
-  throw new Error("DEV_LOGIN must not be enabled in production");
-}

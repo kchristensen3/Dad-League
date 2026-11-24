@@ -14,13 +14,18 @@ Deployed on Railway as one service plus a Postgres database.
     `commissioner.ts` (Claude's weekly note), `storage.ts` (S3 bucket or local disk), `scheduler.ts` (15-min jobs).
   - `test/` Vitest integration tests that hit the real app against a real Postgres.
 - `shared/schemas.ts` zod request schemas + response types used by both server and web. Change API shapes here first.
-- `web/` React 19 + Vite + Tailwind v4 + TanStack Query + React Router SPA.
+- `web/` React 19 + Vite + Tailwind v4 + TanStack Query + React Router SPA. The founder note lives in `web/src/content/story.ts`.
+- `e2e/` Playwright tests. `legal/` privacy and terms sources. `docs/` roadmap, monetization plan and the pro forma page.
 
 ## Commands
 - `npm run dev` — API on :3000 and Vite on :5173 (proxying /api and /auth). Needs Postgres and `.env` (see `.env.example`).
 - `npm run check` — typecheck server + web, then run tests. Run this before you say something works.
 - `npm run db:generate -- --name <what_changed>` — after editing `db/schema.ts`. Commit the generated SQL.
 - `npm run db:migrate` — apply migrations locally. Railway runs `node dist/server/db/migrate.js` pre-deploy.
+- `npm run e2e` — Playwright browser tests in `e2e/` (starts the dev servers itself against a `dadleague_e2e` database;
+  answers Google lookups with stand-ins). Add one for every new user-facing flow. CI runs both suites on every PR.
+- `python3 legal/layout.py` — regenerate `web/public/privacy.html` and `terms.html` after editing `legal/*.md`.
+  Update the privacy policy in the same PR whenever user data starts going to a new third party.
 - Tests need a Postgres at `TEST_DATABASE_URL` (default `postgres://postgres:postgres@localhost:5432/dadleague_test`); the schema is dropped and rebuilt each run.
 
 ## Conventions

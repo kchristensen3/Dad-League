@@ -1,0 +1,315 @@
+<title>Dad League Pro Forma</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap">
+<style>
+/* Layout: sticky assumptions rail on the left, results (KPIs, chart, income statement) on the right; stacks on phones. */
+:root {
+  --bg: #f3f6f7; --panel: #ffffff; --ink: #10222a; --muted: #5a6b72; --line: #dde5e8;
+  --teal: #326273; --teal-soft: #e3eef1; --orange: #e8913a; --orange-soft: #fbeedd;
+  --good: #1f8a5b; --bad: #c2452d; --grid: #e7edef;
+  --display: "Space Grotesk", "Inter", system-ui, sans-serif; --body: "Inter", system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0d1a1f; --panel: #13252c; --ink: #e6eff2; --muted: #93a8b0; --line: #23404a;
+  --teal: #6fb0c6; --teal-soft: #193640; --orange: #f2a65c; --orange-soft: #3a2a18;
+  --good: #4cc38a; --bad: #f07a62; --grid: #1d343c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0d1a1f; --panel: #13252c; --ink: #e6eff2; --muted: #93a8b0; --line: #23404a;
+  --teal: #6fb0c6; --teal-soft: #193640; --orange: #f2a65c; --orange-soft: #3a2a18;
+  --good: #4cc38a; --bad: #f07a62; --grid: #1d343c; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--body); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 48px }
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 20px }
+header h1 { font: 700 clamp(26px, 4vw, 36px)/1.1 var(--display); letter-spacing: -0.02em; margin: 0; text-wrap: balance }
+header p { color: var(--muted); margin: 6px 0 0; max-width: 70ch }
+.scenarios { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px }
+.scenarios button, .ghost { font: 600 13px var(--body); border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 7px 12px; border-radius: 999px; cursor: pointer }
+.scenarios button[aria-pressed="true"] { background: var(--teal); border-color: var(--teal); color: #fff }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px }
+.layout { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); gap: 20px; align-items: start }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr) } }
+.rail { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 6px 16px 16px; position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto }
+@media (max-width: 900px) { .rail { position: static; max-height: none } }
+details { border-bottom: 1px solid var(--line) } details:last-of-type { border-bottom: 0 }
+summary { font: 700 13px var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--teal); padding: 12px 0; cursor: pointer; list-style: none; display: flex; justify-content: space-between }
+summary::after { content: "+"; color: var(--muted) } details[open] summary::after { content: "−" }
+.field { display: grid; grid-template-columns: minmax(0, 1fr) 92px; gap: 4px 10px; align-items: center; margin-bottom: 12px }
+.field label { font-weight: 600; font-size: 13px }
+.field small { grid-column: 1 / -1; color: var(--muted); font-size: 12px; line-height: 1.35 }
+.field input[type=number] { width: 100%; font: 600 13px var(--body); font-variant-numeric: tabular-nums; text-align: right; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink) }
+.field input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--teal) }
+.main { display: grid; gap: 20px; min-width: 0 }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px }
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px }
+.kpi span { display: block; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em }
+.kpi b { display: block; font: 700 24px/1.2 var(--display); margin-top: 4px; font-variant-numeric: tabular-nums }
+.kpi em { font-style: normal; font-size: 12px; color: var(--muted) }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0 }
+.card h2 { font: 700 18px var(--display); margin: 0 0 4px; letter-spacing: -0.01em }
+.card .sub { color: var(--muted); margin: 0 0 12px; font-size: 13px }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--muted); margin-bottom: 6px }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -2px }
+.chart { width: 100%; height: auto; display: block }
+.tablewrap { overflow-x: auto }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; min-width: 520px }
+th, td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap }
+th:first-child, td:first-child { text-align: left }
+thead th { font: 700 12px var(--display); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted) }
+tr.total td { font-weight: 700; border-top: 2px solid var(--ink) }
+tr.section td { font: 700 12px var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--teal); padding-top: 14px; border-bottom: 0 }
+td.neg { color: var(--bad) } td.pos { color: var(--good) }
+.tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap }
+.note { color: var(--muted); font-size: 12.5px; max-width: 80ch }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Dad League pro forma</h1>
+    <p>Forecast a 36-month income statement for the freemium model: free leagues, League Pro subscriptions, App Store and Stripe fees, running costs, and the donations your leagues raise for partner nonprofits. Every number on the left is an editable assumption; the presets are starting points, not predictions.</p>
+    <div class="scenarios" role="group" aria-label="Scenario presets">
+      <button data-preset="conservative">Conservative</button>
+      <button data-preset="base" aria-pressed="true">Base case</button>
+      <button data-preset="optimistic">Optimistic</button>
+      <button class="ghost" id="copy">Copy monthly CSV</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="rail" id="rail" aria-label="Assumptions"></aside>
+    <div class="main">
+      <section class="kpis" id="kpis" aria-label="Key results"></section>
+      <section class="card">
+        <div class="row"><div><h2>Leagues and monthly revenue</h2><p class="sub">Active leagues by tier (bars) and net monthly revenue after fees (line).</p></div></div>
+        <div class="legend"><span><i style="background:var(--teal-soft);border:1px solid var(--teal)"></i>Free leagues</span><span><i style="background:var(--teal)"></i>Pro leagues</span><span><i style="background:var(--orange)"></i>Net revenue / month</span><span><i style="background:var(--muted)"></i>Total costs / month</span></div>
+        <svg class="chart" id="chart" viewBox="0 0 900 320" role="img" aria-label="Chart of leagues and revenue over 36 months"></svg>
+      </section>
+      <section class="card">
+        <div class="row"><div><h2>Income statement</h2><p class="sub" id="plsub">Annual totals. Amounts in US dollars.</p></div>
+          <div class="tabs" role="group" aria-label="Period"><button class="ghost" data-view="annual" aria-pressed="true">By year</button><button class="ghost" data-view="monthly" aria-pressed="false">By month</button></div></div>
+        <div class="tablewrap"><table id="pl"></table></div>
+      </section>
+      <p class="note">How it works: each month, new leagues sign up (growing at the signup growth rate), some free leagues go quiet, a share of free leagues upgrade to League Pro, and some Pro leagues cancel. Annual plans are counted at 1/12 per month. App Store fees apply to the iOS share of new paid leagues once the iOS app launches. Donations go straight to partner nonprofits through a donation platform, so they're shown as impact, not income, unless you set a donor tip to Dad League. This is a planning model, not accounting or tax advice.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const FIELDS = [
+  ["Growth", [
+    ["startLeagues", "Leagues today", 5, 0, 200, 1, "", "Active leagues at month 0, all on the free tier."],
+    ["newLeagues", "New leagues, month 1", 8, 0, 500, 1, "", "Leagues started in the first month."],
+    ["signupGrowth", "Signup growth / month", 8, 0, 40, 0.5, "%", "How much new-league signups grow each month (word of mouth, invites)."],
+    ["membersPerLeague", "Members per league", 6, 2, 30, 1, "", "Average active dads per league."],
+    ["freeChurn", "Free leagues going quiet / month", 4, 0, 20, 0.5, "%", "Share of free leagues that stop using the app each month."],
+  ]],
+  ["League Pro", [
+    ["upgradeRate", "Free → Pro / month", 2, 0, 15, 0.25, "%", "Share of active free leagues that upgrade each month."],
+    ["proChurn", "Pro cancellations / month", 3, 0, 20, 0.25, "%", "Share of Pro leagues that cancel each month."],
+    ["priceMonthly", "Monthly price", 4.99, 0, 30, 0.5, "$", "Per league, per month."],
+    ["priceAnnual", "Annual price", 39.99, 0, 300, 1, "$", "Per league, per year."],
+    ["annualMix", "Choose annual", 40, 0, 100, 5, "%", "Share of Pro leagues on the annual plan."],
+  ]],
+  ["Channels & fees", [
+    ["iosLaunch", "iOS app launches in month", 7, 1, 37, 1, "", "Set to 37 for web-only. Before launch, everything is billed on the web."],
+    ["iosShare", "Paid through the App Store", 50, 0, 100, 5, "%", "After launch, share of Pro revenue billed by Apple."],
+    ["appleFee", "App Store commission", 15, 0, 30, 1, "%", "15% under the Small Business Program (under $1M a year)."],
+    ["stripePct", "Card processing", 2.9, 0, 5, 0.1, "%", "Plus the fixed fee below, per web charge."],
+    ["stripeFixed", "Card fee per charge", 0.30, 0, 1, 0.05, "$", ""],
+    ["billingPct", "Subscription billing", 0.7, 0, 2, 0.1, "%", "Stripe Billing on web subscription revenue."],
+  ]],
+  ["Donations", [
+    ["donorRate", "Members donating / month", 1, 0, 20, 0.5, "%", "Share of all members who give in a given month."],
+    ["avgDonation", "Average gift", 25, 0, 500, 5, "$", "Goes to partner nonprofits, not Dad League."],
+    ["tipPct", "Donor tip to Dad League", 0, 0, 15, 0.5, "%", "Optional tip on top of the gift. 0 keeps donations purely for charity."],
+  ]],
+  ["Running costs", [
+    ["hostingFixed", "Hosting, fixed / month", 25, 0, 500, 5, "$", "Railway service and database baseline."],
+    ["hostingPerMember", "Hosting per member / month", 0.01, 0, 0.5, 0.005, "$", ""],
+    ["aiPro", "AI per Pro league / month", 0.15, 0, 3, 0.05, "$", "Weekly Commissioner notes and unlimited suggestions."],
+    ["aiFree", "AI per free league / month", 0.03, 0, 1, 0.01, "$", "A few idea suggestions."],
+    ["mapsPerLeague", "Maps per league / month", 0.02, 0, 1, 0.01, "$", "Place search and map previews beyond Google's free usage."],
+    ["storagePro", "Photo storage per Pro league / month", 0.05, 0, 1, 0.01, "$", ""],
+    ["marketing", "Marketing / month", 0, 0, 10000, 50, "$", ""],
+    ["tools", "Software & tools / month", 30, 0, 1000, 5, "$", "Email, monitoring, domain, design tools."],
+    ["legal", "Legal & accounting / month", 50, 0, 2000, 25, "$", ""],
+    ["appleDev", "Apple Developer Program / year", 99, 0, 299, 1, "$", "Starts when the iOS app launches."],
+    ["taxRate", "Income tax on profit", 21, 0, 40, 1, "%", "Simple estimate on positive operating income."],
+  ]],
+];
+const PRESETS = {
+  conservative: { newLeagues: 4, signupGrowth: 4, freeChurn: 6, upgradeRate: 1, proChurn: 5, annualMix: 30, iosLaunch: 10, donorRate: 0.5 },
+  base: {},
+  optimistic: { newLeagues: 15, signupGrowth: 12, freeChurn: 3, upgradeRate: 3.5, proChurn: 2, annualMix: 55, iosLaunch: 5, donorRate: 2 },
+};
+const DEFAULTS = Object.fromEntries(FIELDS.flatMap(([, fs]) => fs.map((f) => [f[0], f[2]])));
+let state = { ...DEFAULTS };
+try { const saved = JSON.parse(localStorage.getItem("dl-proforma") || "null"); if (saved) state = { ...DEFAULTS, ...saved }; } catch {}
+let view = "annual";
+
+function simulate(a, months = 36) {
+  const p = (k) => a[k] / 100;
+  let free = a.startLeagues, pro = 0;
+  const rows = [];
+  const perProMonth = p("annualMix") * a.priceAnnual / 12 + (1 - p("annualMix")) * a.priceMonthly;
+  const chargesPerProMonth = p("annualMix") / 12 + (1 - p("annualMix"));
+  for (let t = 1; t <= months; t++) {
+    const newL = a.newLeagues * Math.pow(1 + p("signupGrowth"), t - 1);
+    const upgrades = free * p("upgradeRate");
+    free = free * (1 - p("freeChurn")) + newL - upgrades;
+    pro = pro * (1 - p("proChurn")) + upgrades;
+    const members = (free + pro) * a.membersPerLeague;
+    const ios = t >= a.iosLaunch ? p("iosShare") : 0;
+    const subs = pro * perProMonth;
+    const donations = members * p("donorRate") * a.avgDonation;
+    const tips = donations * p("tipPct");
+    const gross = subs + tips;
+    const appleFees = subs * ios * p("appleFee");
+    const webSubs = subs * (1 - ios);
+    const cardFees = webSubs * (p("stripePct") + p("billingPct")) + pro * (1 - ios) * chargesPerProMonth * a.stripeFixed + tips * p("stripePct");
+    const net = gross - appleFees - cardFees;
+    const hosting = a.hostingFixed + members * a.hostingPerMember;
+    const ai = pro * a.aiPro + free * a.aiFree;
+    const maps = (free + pro) * a.mapsPerLeague;
+    const storage = pro * a.storagePro;
+    const cogs = hosting + ai + maps + storage;
+    const opex = a.marketing + a.tools + a.legal + (t >= a.iosLaunch ? a.appleDev / 12 : 0);
+    const ebit = net - cogs - opex;
+    const tax = Math.max(0, ebit) * p("taxRate");
+    rows.push({ t, free, pro, newL, upgrades, members, subs, tips, gross, appleFees, cardFees, net, hosting, ai, maps, storage, cogs, gp: net - cogs, marketing: a.marketing, tools: a.tools + (t >= a.iosLaunch ? a.appleDev / 12 : 0), legal: a.legal, opex, ebit, tax, ni: ebit - tax, donations });
+  }
+  return rows;
+}
+
+const money = (v, d = 0) => (v < 0 ? "−$" : "$") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const num = (v) => Math.round(v).toLocaleString("en-US");
+
+function buildRail() {
+  const rail = document.getElementById("rail");
+  rail.innerHTML = FIELDS.map(([group, fs], gi) => `<details ${gi < 2 ? "open" : ""}><summary>${group}</summary>${fs.map(([k, label, , min, max, step, unit, help]) => `
+    <div class="field"><label for="f-${k}">${label}${unit === "%" ? " (%)" : unit === "$" ? " ($)" : ""}</label>
+    <input type="number" id="f-${k}" data-k="${k}" min="${min}" max="${max}" step="${step}">
+    <input type="range" id="r-${k}" data-k="${k}" min="${min}" max="${max}" step="${step}" aria-label="${label}">
+    ${help ? `<small>${help}</small>` : ""}</div>`).join("")}</details>`).join("");
+  rail.addEventListener("input", (e) => {
+    const k = e.target.dataset.k; if (!k) return;
+    const v = parseFloat(e.target.value); if (Number.isNaN(v)) return;
+    state[k] = v; markPreset(null); render(e.target);
+  });
+}
+function syncInputs(skip) {
+  for (const k of Object.keys(state)) for (const id of ["f-", "r-"]) { const el = document.getElementById(id + k); if (el && el !== skip) el.value = state[k]; }
+}
+function markPreset(name) { document.querySelectorAll("[data-preset]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.preset === name))); }
+
+function render(skip) {
+  syncInputs(skip);
+  try { localStorage.setItem("dl-proforma", JSON.stringify(state)); } catch {}
+  const rows = simulate(state);
+  const last = rows[rows.length - 1];
+  const be = rows.find((r, i) => r.ebit > 0 && rows.slice(i).every((x) => x.ebit > 0));
+  const y = [0, 1, 2].map((i) => rows.slice(i * 12, i * 12 + 12));
+  const sum = (rs, k) => rs.reduce((s, r) => s + r[k], 0);
+  const netArpu = last.pro > 0 ? (last.net - last.tips) / last.pro : 0;
+  const ltv = state.proChurn > 0 ? netArpu / (state.proChurn / 100) : 0;
+  document.getElementById("kpis").innerHTML = [
+    ["Pro leagues, month 36", num(last.pro), `${num(last.free)} free · ${num(last.members)} dads`],
+    ["Subscription revenue, month 36", money(last.subs), `${money(last.subs * 12)} a year at that pace`],
+    ["Year 3 net income", money(sum(y[2], "ni")), `Year 1: ${money(sum(y[0], "ni"))}`],
+    ["Profitable from", be ? `Month ${be.t}` : "Not in 36 months", be ? "and stays there" : "adjust growth or costs"],
+    ["Value of a Pro league", money(ltv), `${money(netArpu, 2)} net a month ÷ churn`],
+    ["Raised for nonprofits", money(sum(rows, "donations")), "over 36 months"],
+  ].map(([l, v, s]) => `<div class="kpi"><span>${l}</span><b>${v}</b><em>${s}</em></div>`).join("");
+  drawChart(rows);
+  drawTable(rows, y);
+}
+
+function drawChart(rows) {
+  const W = 900, H = 320, L = 56, R = 64, T = 14, B = 34, pw = W - L - R, ph = H - T - B;
+  const maxL = Math.max(1, ...rows.map((r) => r.free + r.pro));
+  const maxM = Math.max(1, ...rows.map((r) => Math.max(r.net, r.cogs + r.opex)));
+  const niceMax = (v) => { const e = Math.pow(10, Math.floor(Math.log10(v))); return Math.ceil(v / e / 2) * 2 * e; };
+  const mL = niceMax(maxL), mM = niceMax(maxM);
+  const bw = pw / rows.length;
+  const x = (i) => L + i * bw + bw / 2;
+  const yL = (v) => T + ph - (v / mL) * ph, yM = (v) => T + ph - (v / mM) * ph;
+  let s = "";
+  for (let g = 0; g <= 4; g++) {
+    const yy = T + ph - (g / 4) * ph;
+    s += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="var(--grid)"/>`;
+    s += `<text x="${L - 8}" y="${yy + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${num((mL * g) / 4)}</text>`;
+    s += `<text x="${W - R + 8}" y="${yy + 4}" font-size="11" fill="var(--muted)">${money((mM * g) / 4)}</text>`;
+  }
+  rows.forEach((r, i) => {
+    const x0 = L + i * bw + bw * 0.15, w = bw * 0.7;
+    s += `<rect x="${x0}" y="${yL(r.pro)}" width="${w}" height="${T + ph - yL(r.pro)}" fill="var(--teal)"/>`;
+    s += `<rect x="${x0}" y="${yL(r.pro + r.free)}" width="${w}" height="${yL(r.pro) - yL(r.pro + r.free)}" fill="var(--teal-soft)" stroke="var(--teal)" stroke-width="0.5"/>`;
+    if ((i + 1) % 6 === 0) s += `<text x="${x(i)}" y="${H - 12}" text-anchor="middle" font-size="11" fill="var(--muted)">M${i + 1}</text>`;
+  });
+  const path = (k) => rows.map((r, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${yM(Math.max(0, k(r))).toFixed(1)}`).join("");
+  s += `<path d="${path((r) => r.cogs + r.opex)}" fill="none" stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 4"/>`;
+  s += `<path d="${path((r) => r.net)}" fill="none" stroke="var(--orange)" stroke-width="3" stroke-linejoin="round"/>`;
+  const lr = rows[rows.length - 1];
+  s += `<circle cx="${x(rows.length - 1)}" cy="${yM(lr.net)}" r="4.5" fill="var(--orange)"/>`;
+  s += `<text x="${L}" y="${H - 2}" font-size="11" fill="var(--muted)">Leagues (left) · dollars per month (right)</text>`;
+  document.getElementById("chart").innerHTML = s;
+}
+
+function drawTable(rows, y) {
+  const cols = view === "annual" ? y.map((rs, i) => ({ label: `Year ${i + 1}`, rs })) : rows.map((r) => ({ label: `M${r.t}`, rs: [r] }));
+  const sum = (rs, k) => rs.reduce((s, r) => s + r[k], 0);
+  const endOf = (rs, k) => rs[rs.length - 1][k];
+  const lines = [
+    ["section", "Operating metrics"],
+    ["Pro leagues (end)", (rs) => num(endOf(rs, "pro"))],
+    ["Free leagues (end)", (rs) => num(endOf(rs, "free"))],
+    ["New leagues", (rs) => num(sum(rs, "newL"))],
+    ["Upgrades to Pro", (rs) => num(sum(rs, "upgrades"))],
+    ["section", "Revenue"],
+    ["League Pro subscriptions", (rs) => sum(rs, "subs"), "$"],
+    ["Donor tips", (rs) => sum(rs, "tips"), "$"],
+    ["App Store commission", (rs) => -sum(rs, "appleFees"), "$"],
+    ["Card processing & billing", (rs) => -sum(rs, "cardFees"), "$"],
+    ["total", "Net revenue", (rs) => sum(rs, "net"), "$"],
+    ["section", "Cost of service"],
+    ["Hosting & database", (rs) => -sum(rs, "hosting"), "$"],
+    ["AI (Claude)", (rs) => -sum(rs, "ai"), "$"],
+    ["Maps", (rs) => -sum(rs, "maps"), "$"],
+    ["Photo storage", (rs) => -sum(rs, "storage"), "$"],
+    ["total", "Gross profit", (rs) => sum(rs, "gp"), "$"],
+    ["section", "Operating expenses"],
+    ["Marketing", (rs) => -sum(rs, "marketing"), "$"],
+    ["Software, tools & developer fees", (rs) => -sum(rs, "tools"), "$"],
+    ["Legal & accounting", (rs) => -sum(rs, "legal"), "$"],
+    ["total", "Operating income", (rs) => sum(rs, "ebit"), "$"],
+    ["Income tax", (rs) => -sum(rs, "tax"), "$"],
+    ["total", "Net income", (rs) => sum(rs, "ni"), "$"],
+    ["section", "Impact"],
+    ["Donated to partner nonprofits", (rs) => sum(rs, "donations"), "$"],
+  ];
+  let h = `<thead><tr><th>Line</th>${cols.map((c) => `<th>${c.label}</th>`).join("")}</tr></thead><tbody>`;
+  for (const line of lines) {
+    if (line[0] === "section") { h += `<tr class="section"><td colspan="${cols.length + 1}">${line[1]}</td></tr>`; continue; }
+    const total = line[0] === "total";
+    const [label, fn, unit] = total ? line.slice(1) : line;
+    h += `<tr class="${total ? "total" : ""}"><td>${label}</td>${cols.map((c) => { const v = fn(c.rs); if (unit !== "$") return `<td>${v}</td>`; const cls = total ? (v < 0 ? "neg" : "pos") : ""; return `<td class="${cls}">${money(v)}</td>`; }).join("")}</tr>`;
+  }
+  document.getElementById("pl").innerHTML = h + "</tbody>";
+  document.getElementById("plsub").textContent = view === "annual" ? "Annual totals. Amounts in US dollars." : "Monthly detail, scroll sideways. Amounts in US dollars.";
+}
+
+document.querySelectorAll("[data-preset]").forEach((b) => b.addEventListener("click", () => { state = { ...DEFAULTS, ...PRESETS[b.dataset.preset] }; markPreset(b.dataset.preset); render(); }));
+document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => { view = b.dataset.view; document.querySelectorAll("[data-view]").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); render(); }));
+document.getElementById("copy").addEventListener("click", async (e) => {
+  const rows = simulate(state);
+  const keys = ["t", "free", "pro", "newL", "upgrades", "subs", "tips", "appleFees", "cardFees", "net", "cogs", "opex", "ebit", "tax", "ni", "donations"];
+  const csv = [keys.join(","), ...rows.map((r) => keys.map((k) => (k === "t" ? r[k] : r[k].toFixed(2))).join(","))].join("\n");
+  try { await navigator.clipboard.writeText(csv); e.target.textContent = "Copied"; } catch { e.target.textContent = "Copy blocked by browser"; }
+  setTimeout(() => (e.target.textContent = "Copy monthly CSV"), 1800);
+});
+buildRail();
+render();
+if (typeof module !== "undefined") module.exports = { simulate, DEFAULTS, PRESETS };
+</script>

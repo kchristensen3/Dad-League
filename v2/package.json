@@ -16,7 +16,9 @@
     "db:migrate": "tsx --env-file-if-exists=.env server/db/migrate.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json",
     "test": "vitest run",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && npm test",
+    "e2e": "playwright test --trace off",
+    "e2e:debug": "playwright test --trace on --headed"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.10.0",
@@ -34,6 +36,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.3.5",
     "@tanstack/react-query": "^5.108.1",
     "@types/canvas-confetti": "^1.9.0",

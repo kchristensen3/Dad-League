@@ -2,11 +2,17 @@ name: v2 CI
 
 on:
   push:
+    branches: [main]
     paths: ["v2/**", ".github/workflows/v2-ci.yml"]
   pull_request:
     paths: ["v2/**", ".github/workflows/v2-ci.yml"]
 
+concurrency:
+  group: v2-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # Typecheck + API/integration tests against a real Postgres.
   check:
     runs-on: ubuntu-latest
     defaults:
@@ -34,3 +40,39 @@ jobs:
         env:
           TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/dadleague_test
       - run: npm run build
+
+  # End-to-end: real browser clicking through the app (sign-in, leagues, events, chat, photos, maps, legal pages).
+  e2e:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: v2
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      CI: "true"
+      E2E_DATABASE_URL: postgres://postgres:postgres@localhost:5432/dadleague_e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: v2/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            v2/playwright-report
+            v2/test-results
+          retention-days: 7

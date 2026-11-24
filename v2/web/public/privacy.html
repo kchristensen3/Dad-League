@@ -1,150 +1,96 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Privacy Policy - Dad League</title>
-  <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-50 text-slate-900 font-sans antialiased min-h-screen flex flex-col">
-  <!-- Header -->
-  <header class="bg-white border-b border-slate-200 py-4 px-6 sticky top-0 z-30">
-    <div class="max-w-4xl mx-auto flex items-center justify-between">
-      <a href="/" class="flex items-center gap-3">
-        <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-md -rotate-3">
-          D
-        </div>
-        <div class="flex flex-col">
-          <span class="text-xl font-black uppercase tracking-tight">Dad<span class="text-indigo-600">League</span></span>
-          <span class="text-[9px] font-black uppercase tracking-widest text-slate-400">Legal & Privacy</span>
-        </div>
-      </a>
-      <div class="flex items-center gap-4 text-xs font-bold">
-        <a href="/terms" class="text-slate-600 hover:text-indigo-600 transition-colors">Terms of Service</a>
-        <a href="/" class="px-3.5 py-1.5 bg-indigo-600 text-white rounded-lg uppercase tracking-wider text-[10px] hover:bg-indigo-700 transition-colors">Launch App</a>
-      </div>
-    </div>
-  </header>
-
-  <!-- Content Container -->
-  <main class="flex-1 max-w-3xl mx-auto px-6 py-12 w-full">
-    <div class="bg-white border border-slate-200 rounded-2xl p-8 md:p-12 shadow-sm space-y-8">
-      <div>
-        <span class="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-black uppercase tracking-wider mb-3">Compliance & Trust</span>
-        <h1 class="text-3xl md:text-4xl font-black tracking-tight text-slate-900">Privacy Policy</h1>
-        <p class="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Last Updated: September 25, 2026 • Effective Date: September 25, 2026</p>
-      </div>
-
-      <div class="prose prose-slate max-w-none text-slate-600 space-y-6 text-sm md:text-base leading-relaxed">
-        <p>
-          Welcome to <strong>Dad League</strong> ("we," "our," or "us"). Dad League is a community platform designed to help dads take time for themselves, connect with friends, and coordinate weekly activities and meetups.
-        </p>
-        <p>
-          We are committed to protecting your privacy and being transparent about the data we collect, why we collect it, and how you control it. This Privacy Policy applies to the Dad League progressive web application, iOS application, and related services (collectively, the "App").
-        </p>
-
-        <hr class="border-slate-100 my-6">
-
-        <h2 class="text-xl font-black text-slate-900 uppercase tracking-tight">1. Information We Collect</h2>
-        <p>We only collect information necessary to provide, maintain, and improve the Dad League community experience:</p>
-        
-        <h3 class="text-base font-bold text-slate-800">A. Information You Provide Directly</h3>
-        <ul class="list-disc pl-5 space-y-2">
-          <li><strong>Account Information:</strong> When you sign in using Google Authentication, we receive your name, email address, and profile photo URL.</li>
-          <li><strong>Profile Information:</strong> You may optionally provide your local area/huddle location (e.g., city/neighborhood), weekly availability preferences, and personal interests/hobbies (e.g., golf, trivia, board games, BBQ).</li>
-          <li><strong>Community Content:</strong> Information you actively post within your league, including proposed activity ideas, event RSVP responses, messages in group chat threads, comments on community boards, and photos/links you share.</li>
-        </ul>
-
-        <h3 class="text-base font-bold text-slate-800">B. Automatically Collected Information</h3>
-        <ul class="list-disc pl-5 space-y-2">
-          <li><strong>App Usage & Device Data:</strong> Basic technical data such as browser type, operating system, and timestamp logs necessary to ensure service reliability, maintain security, and optimize performance.</li>
-          <li><strong>Push Notification Tokens:</strong> If you explicitly opt in to receive event reminders or meetup notifications, we store a notification registration token. You can disable notifications at any time in your device or browser settings.</li>
-        </ul>
-
-        <hr class="border-slate-100 my-6">
-
-        <h2 class="text-xl font-black text-slate-900 uppercase tracking-tight">2. How We Use Your Information</h2>
-        <p>We use the information we collect solely for the following purposes:</p>
-        <ul class="list-disc pl-5 space-y-2">
-          <li><strong>Facilitating League Connections:</strong> Displaying member rosters, organizing weekly activities, and managing RSVP headcounts for events.</li>
-          <li><strong>Communication:</strong> Delivering messages, group chats, community board updates, and optional meetup notifications.</li>
-          <li><strong>Account Management:</strong> Authenticating your identity and maintaining your settings and preferences.</li>
-          <li><strong>Security & Integrity:</strong> Preventing abuse, spam, fraud, or violations of our Terms of Service.</li>
-        </ul>
-        <p class="font-medium text-slate-800">
-          We <strong>do not</strong> sell, rent, monetize, or trade your personal data to data brokers or third parties. We do not use your information for third-party advertising or profiling.
-        </p>
-
-        <hr class="border-slate-100 my-6">
-
-        <h2 class="text-xl font-black text-slate-900 uppercase tracking-tight">3. Service Providers & Third-Party Integrations</h2>
-        <p>We share information with trusted third-party infrastructure providers solely to operate our service:</p>
-        <ul class="list-disc pl-5 space-y-2">
-          <li><strong>Railway:</strong> The app and its PostgreSQL database are hosted on Railway (railway.com), with encrypted transit.</li>
-          <li><strong>Google Sign-In:</strong> Used only to verify your identity; we receive your name, email address and profile photo.</li>
-          <li><strong>Anthropic:</strong> When someone in your league asks for activity suggestions, the league's name and description, members' stated locations, availability and interests, and existing idea titles are sent to Anthropic's Claude API to generate ideas. No names or email addresses are sent.</li>
-          <li><strong>Link previews:</strong> When you post a link, our server fetches that page to show its title and image.</li>
-        </ul>
-
-        <hr class="border-slate-100 my-6">
-
-        <h2 class="text-xl font-black text-slate-900 uppercase tracking-tight">4. Data Retention & Account Deletion</h2>
-        <p>We retain your data only for as long as your account remains active or as needed to provide you with the services.</p>
-        
-        <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-5 my-4">
-          <h4 class="font-black text-indigo-900 uppercase text-sm tracking-wide mb-1">In-App Account & Data Deletion (Apple App Store Guideline 5.1.1(v))</h4>
-          <p class="text-indigo-800 text-sm">
-            You have the absolute right to delete your account at any time. Inside the App, navigate to <strong>Account Settings (Profile) → Account & Data Privacy</strong> and select <strong>Delete Account</strong>. This permanently removes your member record, interests, availability, and Google sign-in credentials from our database.
-          </p>
-          <p class="text-indigo-800 text-sm mt-2">
-            You can also submit a deletion request via email to <a href="mailto:kylechristensen3@gmail.com" class="font-bold underline">kylechristensen3@gmail.com</a>.
-          </p>
-        </div>
-
-        <hr class="border-slate-100 my-6">
-
-        <h2 class="text-xl font-black text-slate-900 uppercase tracking-tight">5. Security</h2>
-        <p>
-          We implement reasonable administrative, technical, and physical security measures to safeguard your personal data. Authentication is handled via secure OAuth providers (Google Sign-In), and all communication with our servers is encrypted using Transport Layer Security (TLS/HTTPS).
-        </p>
-
-        <hr class="border-slate-100 my-6">
-
-        <h2 class="text-xl font-black text-slate-900 uppercase tracking-tight">6. Children's Privacy</h2>
-        <p>
-          Dad League is intended for adults (parents and guardians aged 18 and older). We do not knowingly collect or solicit personal data from children under the age of 13. If we learn that we have inadvertently collected personal data from a child, we will take immediate steps to delete it.
-        </p>
-
-        <hr class="border-slate-100 my-6">
-
-        <h2 class="text-xl font-black text-slate-900 uppercase tracking-tight">7. Your Rights (GDPR & CCPA/CPRA)</h2>
-        <p>
-          Depending on your jurisdiction, you have the right to access, update, export, or delete your personal information, or withdraw consent at any time without discrimination.
-        </p>
-
-        <hr class="border-slate-100 my-6">
-
-        <h2 class="text-xl font-black text-slate-900 uppercase tracking-tight">8. Contact Us</h2>
-        <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 text-sm">
-          <p class="font-bold text-slate-800">Kyle Christensen</p>
-          <p class="text-slate-500">Founder, Dad League</p>
-          <p class="mt-2 text-slate-600">Email: <a href="mailto:kylechristensen3@gmail.com" class="text-indigo-600 font-bold hover:underline">kylechristensen3@gmail.com</a></p>
-        </div>
-      </div>
-    </div>
-  </main>
-
-  <!-- Footer -->
-  <footer class="bg-white border-t border-slate-200 py-6 px-6 text-center text-xs text-slate-400">
-    <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-      <p>© 2026 Dad League. Built for dads who need a break.</p>
-      <div class="flex items-center gap-4">
-        <a href="/terms" class="hover:text-slate-600 transition-colors">Terms of Service</a>
-        <span>•</span>
-        <a href="/privacy" class="hover:text-slate-600 transition-colors font-bold text-slate-600">Privacy Policy</a>
-      </div>
-    </div>
-  </footer>
-</body>
-</html>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy · Dad League</title><meta name="description" content="Dad League Privacy Policy">
+<link rel="icon" href="/icon.svg" type="image/svg+xml"><style>
+:root{--teal:#326273;--teal-dark:#193139;--accent:#e8913a;--ink:#0f172a;--muted:#475569;--line:#e2e8f0;--bg:#f1f5f9;--card:#fff}
+@media (prefers-color-scheme:dark){:root{--ink:#e2e8f0;--muted:#94a3b8;--line:#1e293b;--bg:#0b1220;--card:#0f172a}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif}
+header{background:var(--teal-dark);color:#fff}
+.bar{max-width:760px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:12px}
+.bar img{width:36px;height:36px;border-radius:9px}.bar b{font-weight:900;letter-spacing:-.02em;text-transform:uppercase}
+.bar nav{margin-left:auto;display:flex;gap:16px;font-size:14px}.bar a{color:#cfe3ea;text-decoration:none}.bar a:hover{color:#fff}
+main{max-width:760px;margin:0 auto;padding:28px 20px 64px}
+article{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:28px 24px}
+h1{font-size:34px;line-height:1.1;letter-spacing:-.03em;margin:0 0 6px}
+.meta{color:var(--muted);font-size:14px;margin:0 0 20px}
+h2{font-size:19px;letter-spacing:-.01em;margin:30px 0 8px;padding-top:14px;border-top:1px solid var(--line)}
+h3{font-size:16px;margin:18px 0 4px}
+p,li{color:var(--ink)}ul{padding-left:22px}li{margin:4px 0}
+a{color:var(--teal)}@media (prefers-color-scheme:dark){a{color:#7fb8cb}}
+.summary{background:rgba(50,98,115,.08);border-left:4px solid var(--teal);border-radius:10px;padding:12px 16px;margin:16px 0}
+footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
+</style></head>
+<body><header><div class="bar"><a href="/"><img src="/icon.svg" alt=""></a><b>Dad League</b>
+<nav><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/">Open the app</a></nav></div></header>
+<main><article>
+<h1>Privacy Policy</h1>
+<p class="meta">Last updated November 24, 2026 · Effective November 24, 2026</p>
+<p>Dad League ("we," "us") is a small app that helps groups of dads plan meetups, share ideas and keep in touch. This policy explains what we collect, why, who helps us process it, and the choices you have. It covers the Dad League website and app at dad-league-production.up.railway.app and any mobile version of it (together, "Dad League").</p>
+<div class="summary">
+<p><strong>The short version:</strong> we collect what's needed to run your league and nothing more. Your league members see what you post in that league. We don't sell your data, show ads, or use advertising trackers. You can delete your account and what you've posted from your Profile at any time.</p>
+</div>
+<h2>1. Information we collect</h2>
+<h3>You give us</h3>
+<ul>
+<li><strong>Account details</strong> when you sign in with Google or Apple: your name, email address and profile photo. If you use Apple's "Hide My Email," we receive a relay address instead of your real one, and Apple only shares your name the first time you sign in.</li>
+<li><strong>Profile details you choose to add:</strong> where you live (for example "Ferndale, MI"), when you're usually free, and your interests.</li>
+<li><strong>What you create in a league:</strong> events and RSVPs, standing meetups, ideas and votes, board posts, likes and comments, chat messages, photos, and the places you pick for events.</li>
+</ul>
+<h3>Collected as you use Dad League</h3>
+<ul>
+<li><strong>Photos.</strong> When you upload a photo, we resize it and remove the hidden information phones attach to pictures, including the location where it was taken.</li>
+<li><strong>Notification registration.</strong> If you turn on notifications, your browser gives us a delivery address for your device. We store it to send you notifications and delete it if it stops working or you delete your account.</li>
+<li><strong>Technical records.</strong> Our servers record basic request information (such as the page requested, the time and whether it succeeded) to keep the service running and secure. Our hosting provider may also record IP addresses in its network logs.</li>
+<li><strong>Cookies and similar storage.</strong> We use one essential cookie to keep you signed in (it lasts up to 30 days and renews while you use the app) and short-lived cookies during sign-in. Your browser also remembers which league you last opened and whether you've seen the welcome page. We don't use advertising or analytics cookies.</li>
+</ul>
+<h2>2. How we use it</h2>
+<ul>
+<li>To run your leagues: show events, ideas, posts, chat, photos, member lists, stats and the Trophy Case to the members of each league.</li>
+<li>To send notifications you've turned on, such as new events, day-before reminders, host turns and chat messages. You can switch each type off in your Profile.</li>
+<li>To provide optional AI features (see section 4) and place search (see section 5).</li>
+<li>To keep Dad League secure, prevent abuse, and fix problems.</li>
+<li>To communicate with you about your account or important changes to Dad League.</li>
+</ul>
+<p><strong>We do not sell or rent your personal information, use it for advertising, or share it with data brokers.</strong></p>
+<h2>3. Who can see what</h2>
+<ul>
+<li><strong>Members of your league</strong> can see your name, profile photo, the profile details you added, your activity stats, and everything you post in that league. If you're in several leagues, each league only sees what's posted in it.</li>
+<li><strong>Anyone with your league's invite link</strong> can see the league's name, description and member count before joining.</li>
+<li><strong>League owners</strong> can remove members and remove content in their league.</li>
+</ul>
+<h2>4. AI features (Anthropic)</h2>
+<p>Dad League uses Claude, an AI model made by Anthropic, for two optional features. Anthropic processes this information as our service provider to produce a response for us.</p>
+<ul>
+<li><strong>Idea suggestions</strong> (the "Suggest" button on the Ideas tab). We send the league's name and description, members' stated locations, availability and interests, and the titles of ideas already on the list. We don't send names, email addresses or chat messages.</li>
+<li><strong>The Commissioner</strong> (a weekly note in league chat, which league owners can turn off). We send the league's name and time zone, members' names and stated availability, upcoming events with who's in, who's out and who hasn't replied, the top-voted ideas, the number of chat messages that week, and the Commissioner's previous note. We don't send email addresses, chat message text or photos.</li>
+</ul>
+<p>AI-written suggestions and notes can be wrong. Check details such as venue hours before you go.</p>
+<h2>5. Other service providers</h2>
+<p>We share information only with providers that help us run Dad League, and only what they need:</p>
+<ul>
+<li><strong>Railway</strong> hosts our servers, database and photo storage in the United States.</li>
+<li><strong>Google</strong> provides Sign in with Google. If place search is on, the text you type into a location field and the place you pick are sent from our server to Google Maps Platform to find places and draw map previews. Google receives these requests from our server, not your device.</li>
+<li><strong>Apple</strong> provides Sign in with Apple.</li>
+<li><strong>Push notification services</strong> run by your browser or device maker (Apple, Google or Mozilla) deliver notifications. The contents are encrypted so these services can't read them.</li>
+<li><strong>Links you post.</strong> When you post a link, our server visits that page to show its title and image as a preview.</li>
+<li><strong>Payments.</strong> Dad League is free today. If we add paid features or donations, payments will be handled by a payment processor (such as Stripe or Apple) and we will not store your full card number. We'll update this policy before that happens.</li>
+</ul>
+<p>We may also disclose information if the law requires it, to protect someone's safety, or as part of a merger or sale of Dad League (in which case this policy will continue to apply to your information).</p>
+<h2>6. How long we keep it</h2>
+<p>We keep your information while your account is active. When you delete something, it's removed from Dad League right away; copies in backups and logs may remain for a limited time before they are overwritten.</p>
+<h2>7. Deleting your account</h2>
+<p>Go to <strong>Profile → Delete account</strong>. This permanently removes your account, profile, notification registrations, and the ideas, events you host, posts, comments, chat messages and photos you've added. If you own a league, it passes to the member who has been in it longest; if you're the only member, the league is deleted. You can also email us to ask for deletion.</p>
+<h2>8. Security</h2>
+<p>Connections to Dad League are encrypted (HTTPS). Sign-in is handled by Google or Apple, so we never see or store a password. Photos and notification addresses are only served to members of the right league. No system is perfectly secure, so please don't post anything you wouldn't want your league to see.</p>
+<h2>9. Age requirement</h2>
+<p>Dad League is for adults 18 and older. We don't knowingly collect information from anyone under 13. If you believe a child has given us personal information, contact us and we'll delete it.</p>
+<h2>10. Your rights</h2>
+<p>Depending on where you live (for example California, or the EU and UK), you may have the right to know what we hold about you, get a copy, correct it, delete it, or object to how it's used. You can edit or delete most information yourself in the app. For anything else, email us and we'll respond within 30 days. We won't treat you differently for using these rights. We don't "sell" or "share" personal information as those terms are used in California law.</p>
+<h2>11. International users</h2>
+<p>Dad League is operated from, and stores information in, the United States. If you use it from elsewhere, your information will be processed in the United States.</p>
+<h2>12. Changes to this policy</h2>
+<p>If we make important changes, we'll update the date above and let you know in the app before they take effect.</p>
+<h2>13. Contact us</h2>
+<p>Kyle Christensen, Founder, Dad League. Email: <a href="mailto:kylechristensen3@gmail.com">kylechristensen3@gmail.com</a></p>
+</article><footer>© 2026 Dad League · <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Service</a></footer></main></body></html>

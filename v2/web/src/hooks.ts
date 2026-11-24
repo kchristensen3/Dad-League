@@ -18,16 +18,16 @@ export const useMembers = (leagueId: string) =>
 
 /**
  * Subscribes to the league's server-sent event stream and refetches whatever changed.
- * EventSource reconnects on its own; on reconnect we refetch everything once.
+ * EventSource reconnects on its own; on every (re)connect we refetch what's already loaded.
  */
 export function useLeagueStream(leagueId: string) {
   const qc = useQueryClient();
   useEffect(() => {
     const es = new EventSource(`/api/leagues/${leagueId}/stream`);
-    let first = true;
+    // Each time the stream (re)connects, refetch anything loaded before it was listening:
+    // changes made between a page's first fetch and the subscription would otherwise be missed.
     es.addEventListener("ready", () => {
-      if (!first) void qc.invalidateQueries({ predicate: (q) => q.queryKey[1] === leagueId });
-      first = false;
+      void qc.invalidateQueries({ predicate: (q) => q.queryKey[1] === leagueId && q.state.dataUpdatedAt > 0 });
     });
     es.addEventListener("change", (e) => {
       const change = JSON.parse((e as MessageEvent).data) as LeagueChange;

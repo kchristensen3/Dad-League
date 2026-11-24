@@ -9,5 +9,5 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["web/src/**/*", "shared/**/*.ts", "vite.config.ts", "vitest.config.ts", "drizzle.config.ts", "server/test/**/*.ts"]
+  "include": ["web/src/**/*", "shared/**/*.ts", "vite.config.ts", "vitest.config.ts", "drizzle.config.ts", "server/test/**/*.ts", "e2e/**/*.ts", "playwright.config.ts"]
 }

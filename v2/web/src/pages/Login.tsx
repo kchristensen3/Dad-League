@@ -106,7 +106,7 @@ const STEPS = [
 
 const FAQ = [
   { q: "Is it free?", a: "Yes. Everything you see here is free. If we ever add paid extras, the core of running a league will stay free." },
-  { q: "Do I need to download an app?", a: "No. Dad League runs in your phone's browser. Add it to your Home Screen and it opens like an app, with notifications, no App Store needed." },
+  { q: "Is there an iPhone or Android app?", a: "Native iPhone and Android apps are coming soon. Until then, add Dad League to your Home Screen (steps above) and it opens full-screen like an app, with notifications." },
   { q: "Who can see what I post?", a: "Only the members of the league you post in. We don't sell your data or show ads. See the Privacy Policy for details." },
   { q: "What's the Commissioner?", a: "An AI helper (Claude, by Anthropic) that posts a short weekly note in your league's chat. League owners can turn it off any time." },
   { q: "Is it only for dads?", a: "It was built for dads who keep saying \"we should hang out,\" but any group of friends trying to get together regularly is welcome." },
@@ -302,7 +302,11 @@ export default function Login() {
           </motion.figure>
         </Section>
 
-        <Section eyebrow="No App Store needed" title="Put it on your phone">
+        <Section eyebrow="Native app coming soon" title="Put it on your phone">
+          <p className="mx-auto -mt-4 mb-6 max-w-xl text-sm text-slate-400">
+            iPhone and Android apps are on the way. Until then, add Dad League to your Home Screen in about 20 seconds and it works like
+            an app, notifications included.
+          </p>
           <div className="mx-auto grid max-w-3xl gap-4 text-left sm:grid-cols-2">
             {[
               { device: "iPhone", icon: Smartphone, steps: ["Open Dad League in Safari", "Tap the Share button", "Choose Add to Home Screen", "Open it from the new icon and turn on notifications in Profile"] },

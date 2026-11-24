@@ -1,12 +1,14 @@
-import { Trophy } from "lucide-react";
-
+/** The app icon (the "hoisted trophy"), same artwork as the home-screen icon and browser tab. */
 export function Logo({ size = 36 }: { size?: number }) {
   return (
-    <span
-      className="inline-flex items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-white shadow"
-      style={{ width: size, height: size }}
-    >
-      <Trophy size={size * 0.5} className="rotate-3" />
-    </span>
+    <img
+      src="/icon.svg"
+      alt=""
+      width={size}
+      height={size}
+      className="shrink-0 shadow-sm"
+      style={{ width: size, height: size, borderRadius: size * 0.24 }}
+      draggable={false}
+    />
   );
 }

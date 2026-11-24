@@ -17,6 +17,8 @@ const schema = z.object({
   /** Enables the email-only sign-in form. Never set this in production. */
   DEV_LOGIN: z.stringbool().default(false),
   ANTHROPIC_API_KEY: z.string().optional(),
+  /** Google Maps Platform key with Places API (New) and Maps Static API enabled. Used server-side only. */
+  GOOGLE_MAPS_API_KEY: z.string().optional(),
   /** Photo storage: any S3-compatible bucket (e.g. a Railway Storage Bucket). */
   S3_BUCKET: z.string().optional(),
   S3_ENDPOINT: z.string().url().optional(),
@@ -76,6 +78,7 @@ export const env = {
   googleEnabled: Boolean(parsed.GOOGLE_CLIENT_ID && parsed.GOOGLE_CLIENT_SECRET),
   appleEnabled: Boolean(parsed.APPLE_CLIENT_ID && parsed.APPLE_TEAM_ID && parsed.APPLE_KEY_ID && parsed.APPLE_PRIVATE_KEY),
   aiEnabled: Boolean(parsed.ANTHROPIC_API_KEY),
+  mapsEnabled: Boolean(parsed.GOOGLE_MAPS_API_KEY),
   pushEnabled: Boolean(parsed.VAPID_PUBLIC_KEY && parsed.VAPID_PRIVATE_KEY),
   s3Enabled: Boolean(parsed.S3_BUCKET && parsed.S3_ACCESS_KEY_ID && parsed.S3_SECRET_ACCESS_KEY),
   /** In production, photos need a bucket: the container's disk is wiped on every deploy. */

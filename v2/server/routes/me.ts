@@ -1,10 +1,12 @@
 import { and, asc, eq, ne } from "drizzle-orm";
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { type Me, pushSubscriptionSchema, updateProfileSchema } from "../../shared/schemas.js";
 import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
 import { type AppEnv, type SessionUser, destroySession, getSessionUser, requireUser } from "../lib/auth.js";
 import { iso, parseBody } from "../lib/http.js";
+import { sendTestToUser } from "../lib/push.js";
 import { deletePhotoFiles } from "../lib/storage.js";
 
 export const toMe = (u: SessionUser): Me => ({
@@ -77,6 +79,13 @@ export const meRoutes = new Hono<AppEnv>()
         set: { userId: c.var.user.id, p256dh: sub.keys.p256dh, auth: sub.keys.auth },
       });
     return c.json({ ok: true });
+  })
+
+  .post("/push/test", requireUser, async (c) => {
+    if (!env.pushEnabled) throw new HTTPException(503, { message: "Push notifications aren't set up on this server yet" });
+    const result = await sendTestToUser(c.var.user.id);
+    if (result.devices === 0) throw new HTTPException(409, { message: "No devices are signed up for notifications yet" });
+    return c.json(result);
   })
 
   .delete("/push", requireUser, async (c) => {

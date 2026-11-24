@@ -95,3 +95,8 @@ export function localWeekdayHour(timezone: string, now = new Date()): { weekday:
   const wd = parts.find((p) => p.type === "weekday")!.value;
   return { weekday: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(wd), hour: Number(parts.find((p) => p.type === "hour")!.value) };
 }
+
+/** Wall-clock "HH:MM" of an instant in a zone. */
+export function localTimeOfDay(instant: Date, timezone: string): string {
+  return new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(instant);
+}

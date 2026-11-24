@@ -57,39 +57,71 @@ const timezoneSchema = z
     }
   }, "Unknown time zone");
 
-export const createLeagueSchema = z.object({
+/*
+ * Each resource defines its fields once WITHOUT defaults. Create schemas add the defaults;
+ * update schemas are `.partial()` of the bare fields. (A `.default()` inside a partial schema
+ * still fires for omitted keys, which would silently blank fields an edit didn't touch.)
+ */
+const leagueFields = {
   name: trimmed(80).min(1),
-  description: trimmed(500).default(""),
-  timezone: timezoneSchema.optional(),
+  description: trimmed(500),
+  timezone: timezoneSchema,
+};
+export const createLeagueSchema = z.object({
+  ...leagueFields,
+  description: leagueFields.description.default(""),
+  timezone: leagueFields.timezone.optional(),
 });
-export const updateLeagueSchema = createLeagueSchema.partial().extend({
+export const updateLeagueSchema = z.object(leagueFields).partial().extend({
   commissionerEnabled: z.boolean().optional(),
 });
 export const joinLeagueSchema = z.object({ code: trimmed(32).min(1) });
 
-export const createIdeaSchema = z.object({
+const ideaFields = {
   title: trimmed(120).min(1),
-  description: trimmed(1000).default(""),
+  description: trimmed(1000),
   category: categorySchema,
   location: optionalText(200),
-  aiSuggested: z.boolean().default(false),
+  aiSuggested: z.boolean(),
+};
+export const createIdeaSchema = z.object({
+  ...ideaFields,
+  description: ideaFields.description.default(""),
+  aiSuggested: ideaFields.aiSuggested.default(false),
 });
-export const updateIdeaSchema = createIdeaSchema.partial().extend({
-  archived: z.boolean().optional(),
-});
+export const updateIdeaSchema = z
+  .object(ideaFields)
+  .omit({ aiSuggested: true })
+  .partial()
+  .extend({ archived: z.boolean().optional() });
 
-export const createEventSchema = z.object({
+/** A location picked from map search. Absent/null means free-text location only. */
+export const placeSchema = z.object({
+  placeId: z.string().min(1).max(300),
+  address: trimmed(300),
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+});
+export type PlaceInput = z.infer<typeof placeSchema>;
+
+const eventFields = {
   title: trimmed(120).min(1),
   category: categorySchema,
-  description: trimmed(2000).default(""),
+  description: trimmed(2000),
   location: optionalText(200),
   url: httpUrl.optional().nullable().transform((v) => v ?? null),
   startsAt: z.iso.datetime({ offset: true }),
+  place: placeSchema.nullable().optional(),
+};
+export const createEventSchema = z.object({
+  ...eventFields,
+  description: eventFields.description.default(""),
   ideaId: z.uuid().optional().nullable(),
 });
-export const updateEventSchema = createEventSchema.omit({ ideaId: true }).partial().extend({
+export const updateEventSchema = z.object(eventFields).partial().extend({
   cancelled: z.boolean().optional(),
 });
+
 /** How a standing meetup repeats. `nth` 5 means "last". */
 export const repeatRuleSchema = z.discriminatedUnion("freq", [
   z.object({ freq: z.literal("weekly"), weekday: z.number().int().min(0).max(6) }),
@@ -98,17 +130,28 @@ export const repeatRuleSchema = z.discriminatedUnion("freq", [
 ]);
 export type RepeatRule = z.infer<typeof repeatRuleSchema>;
 
-export const createSeriesSchema = z.object({
+const timeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM");
+const seriesFields = {
   title: trimmed(120).min(1),
   category: categorySchema,
-  description: trimmed(2000).default(""),
+  description: trimmed(2000),
   location: optionalText(200),
   url: httpUrl.optional().nullable().transform((v) => v ?? null),
+  timeOfDay: timeOfDaySchema,
+  place: placeSchema.nullable().optional(),
+  hostRotation: z.array(z.uuid()).max(50),
+};
+export const createSeriesSchema = z.object({
+  ...seriesFields,
+  description: seriesFields.description.default(""),
+  hostRotation: seriesFields.hostRotation.default([]),
   rule: repeatRuleSchema,
-  timeOfDay: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM"),
   timezone: timezoneSchema,
   startsOn: z.iso.date(),
-  hostRotation: z.array(z.uuid()).max(50).default([]),
+});
+/** Editing a standing meetup. Changing how often it repeats means starting a new one. */
+export const updateSeriesSchema = z.object(seriesFields).partial().extend({
+  paused: z.boolean().optional(),
 });
 
 export const rsvpSchema = z.object({ status: z.enum(["going", "not_going"]).nullable() });
@@ -217,6 +260,7 @@ export interface EventItem {
   startsAt: string;
   cancelled: boolean;
   ideaId: string | null;
+  place: { placeId: string; address: string; lat: number; lng: number } | null;
   series: { id: string; label: string } | null;
   host: UserSummary;
   going: UserSummary[];
@@ -226,10 +270,29 @@ export interface EventItem {
   photoCount: number;
 }
 
+export interface PlaceSuggestion {
+  placeId: string;
+  name: string;
+  address: string;
+}
+
+export interface PlaceDetails {
+  placeId: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+}
+
 export interface Series {
   id: string;
   title: string;
   category: Category;
+  description: string;
+  location: string | null;
+  place: { placeId: string; address: string; lat: number; lng: number } | null;
+  url: string | null;
+  rule: RepeatRule;
   label: string;
   timeOfDay: string;
   timezone: string;

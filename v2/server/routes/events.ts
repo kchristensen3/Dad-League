@@ -12,7 +12,8 @@ import { db, schema } from "../db/client.js";
 import { forbidden, notFound, requireMembership, uuidParam } from "../lib/access.js";
 import { describeRule } from "../lib/recurrence.js";
 import { deletePhotoFiles } from "../lib/storage.js";
-import { iso, parseBody, userSummary } from "../lib/http.js";
+import { iso, parseBody, placeColumns, userSummary } from "../lib/http.js";
+import { MapsUnavailableError, staticMap } from "../lib/places.js";
 import { notifyLeague, notifyUsers } from "../lib/push.js";
 import { publish } from "../lib/realtime.js";
 import { canModify, scopedRouter } from "./scope.js";
@@ -74,6 +75,10 @@ async function listEvents(
       startsAt: iso(event.startsAt),
       cancelled: event.cancelledAt !== null,
       ideaId: event.ideaId,
+      place:
+        event.placeId && event.lat !== null && event.lng !== null
+          ? { placeId: event.placeId, address: event.placeAddress ?? "", lat: event.lat, lng: event.lng }
+          : null,
       series: event.seriesId && seriesRule ? { id: event.seriesId, label: describeRule(seriesRule) } : null,
       host,
       going: r?.going ?? [],
@@ -99,7 +104,7 @@ export const eventRoutes = scopedRouter()
   })
 
   .post("/", async (c) => {
-    const body = await parseBody(c, createEventSchema);
+    const { place, ...body } = await parseBody(c, createEventSchema);
     if (body.ideaId) {
       const idea = await db.query.ideas.findFirst({
         where: and(eq(schema.ideas.id, body.ideaId), eq(schema.ideas.leagueId, c.var.leagueId)),
@@ -108,7 +113,7 @@ export const eventRoutes = scopedRouter()
     }
     const [event] = await db
       .insert(schema.events)
-      .values({ ...body, startsAt: new Date(body.startsAt), leagueId: c.var.leagueId, hostId: c.var.user.id })
+      .values({ ...body, ...placeColumns(place ?? null), startsAt: new Date(body.startsAt), leagueId: c.var.leagueId, hostId: c.var.user.id })
       .returning();
     await db.insert(schema.eventRsvps).values({ eventId: event!.id, userId: c.var.user.id, status: "going" });
     await publish({ leagueId: c.var.leagueId, kind: "events" });
@@ -132,11 +137,13 @@ export const eventRoutes = scopedRouter()
   .patch("/:eventId", async (c) => {
     const event = await loadEvent(c.var.leagueId, uuidParam(c.req.param("eventId")));
     if (!canModify(c, event.hostId)) forbidden("Only the host or league owner can edit this event");
-    const { cancelled, startsAt, ...rest } = await parseBody(c, updateEventSchema);
+    const { cancelled, startsAt, place, ...rest } = await parseBody(c, updateEventSchema);
     await db
       .update(schema.events)
       .set({
         ...rest,
+        // A new picked place replaces the old one; retyping the location by hand clears it.
+        ...(place !== undefined ? placeColumns(place) : rest.location !== undefined ? placeColumns(null) : {}),
         ...(startsAt ? { startsAt: new Date(startsAt) } : {}),
         ...(cancelled === undefined ? {} : { cancelledAt: cancelled ? new Date() : null }),
       })
@@ -161,6 +168,20 @@ export const eventRoutes = scopedRouter()
     await db.delete(schema.events).where(eq(schema.events.id, event.id));
     await publish({ leagueId: c.var.leagueId, kind: "events" });
     return c.json({ ok: true });
+  })
+
+  /** Map image for the event's picked place (proxied so the Google key stays server-side). */
+  .get("/:eventId/map", async (c) => {
+    const event = await loadEvent(c.var.leagueId, uuidParam(c.req.param("eventId")));
+    if (event.lat === null || event.lng === null) notFound("This event has no map location");
+    try {
+      const img = await staticMap(event.lat, event.lng);
+      c.header("Cache-Control", "private, max-age=604800");
+      return c.body(new Uint8Array(img.body), 200, { "content-type": img.contentType });
+    } catch (err) {
+      if (err instanceof MapsUnavailableError) throw new HTTPException(503, { message: err.message });
+      throw new HTTPException(502, { message: "Couldn't load the map" });
+    }
   })
 
   /** Pass hosting duties to another member (current host or league owner). */

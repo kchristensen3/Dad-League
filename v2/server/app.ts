@@ -1,4 +1,6 @@
-import { Hono } from "hono";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
@@ -24,6 +26,16 @@ export function createApp() {
   app.use(secureHeaders({ crossOriginEmbedderPolicy: false, contentSecurityPolicy: undefined }));
   app.use("/api/*", sameOriginWrites);
   app.use("/auth/*", sameOriginWrites);
+
+  // Legal pages: plain HTML (no JavaScript needed), at the short URLs app stores ask for.
+  const legal = (file: string) => async (c: Context) => {
+    const dir = env.isProd ? path.resolve(import.meta.dirname, "../web") : path.resolve(process.cwd(), "web/public");
+    return c.html(await readFile(path.join(dir, file), "utf8"));
+  };
+  app.get("/privacy", legal("privacy.html"));
+  app.get("/privacy-policy", (c) => c.redirect("/privacy", 301));
+  app.get("/terms", legal("terms.html"));
+  app.get("/terms-of-service", (c) => c.redirect("/terms", 301));
 
   app.get("/healthz", async (c) => {
     await sql`select 1`;

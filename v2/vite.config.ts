@@ -11,6 +11,7 @@ export default defineConfig({
     proxy: {
       "/api": { target: "http://localhost:3000", changeOrigin: false },
       "/auth": { target: "http://localhost:3000", changeOrigin: false },
+      "^/(privacy|terms)(-policy|-of-service)?$": { target: "http://localhost:3000", changeOrigin: false },
     },
   },
 });

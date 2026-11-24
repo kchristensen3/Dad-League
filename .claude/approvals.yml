@@ -1,0 +1,25 @@
+# Claude Approvals policy (Claude Ship). Starts in observe mode: it reports what it would decide
+# without blocking merges. Delete the `mode: observe` line to enforce it, then make the
+# "Claude Approvals" check required on main in GitHub's branch protection settings.
+version: 1
+mode: observe
+rules:
+  - purpose: "Routine changes: Claude approves once its code review passes. Otherwise Kyle approves."
+    paths: ["**"]
+    verdict: { claude: comments, seats: 1 }
+    override:
+      - { if: "claude/code_review = pass", verdict: { claude: approves, seats: 0 } }
+  - purpose: "Sign-in, database migrations, legal pages, CI and review settings always need Kyle."
+    paths:
+      - "v2/server/lib/auth.ts"
+      - "v2/server/routes/auth.ts"
+      - "v2/server/db/migrations/**"
+      - "v2/legal/**"
+      - "v2/web/public/privacy.html"
+      - "v2/web/public/terms.html"
+      - ".github/**"
+      - "**/.claude/**"
+      - "**/CLAUDE.md"
+      - "REVIEW.md"
+    verdict: { claude: comments, seats: 1 }
+    advisory: [claude/code_review]

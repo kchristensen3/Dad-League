@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { motion } from "motion/react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { Logo } from "../components/Brand";
+import { FOUNDER_NOTE } from "../content/story";
 import { useDocumentTitle, useMe } from "../hooks";
 
 export const SEEN_ABOUT_KEY = "dl:seenAbout";
@@ -99,20 +100,9 @@ export default function About() {
           </span>
           <h3 className="text-xl font-black text-slate-800">Why I started Dad League</h3>
           <div className="mt-4 space-y-4 border-l-4 border-brand-200 py-1 pl-5 italic leading-relaxed text-slate-600">
-            <p>Hey, I'm Kyle.</p>
-            <p>
-              A little while ago, I realized I was stuck in a bit of a funk. I was putting all my energy into being a good manager, a present
-              dad, a supportive husband, and an active member of my community. I loved doing those things, but somewhere in the middle of all
-              those responsibilities, I completely forgot to take time out for myself just to have fun with my friends.
-            </p>
-            <p>
-              I came to a realization: if I didn't literally "put it on the calendar," it was never going to happen. I needed a way to force
-              myself to get out there, but I wanted it to be fun, inclusive, and positive for other guys who were in the exact same situation.
-            </p>
-            <p>
-              That's what Dad League is. It’s not about escaping our lives; it’s about recharging so we can show up better for the people who
-              depend on us. It's a standing invitation to just hang out.
-            </p>
+            {FOUNDER_NOTE.map((p) => (
+              <p key={p.slice(0, 20)}>{p}</p>
+            ))}
           </div>
           <div className="mt-6 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-100 font-black text-brand-600">KC</div>
@@ -133,8 +123,8 @@ export default function About() {
 
         <footer className="flex flex-wrap items-center justify-center gap-3 border-t border-slate-200 pt-6 text-xs text-slate-400">
           <span>Dad League v2 · Built with pride for dads everywhere</span>
-          <a href="/privacy.html" className="font-bold text-slate-500 underline hover:text-brand-600">Privacy</a>
-          <a href="/terms.html" className="font-bold text-slate-500 underline hover:text-brand-600">Terms</a>
+          <a href="/privacy" className="font-bold text-slate-500 underline hover:text-brand-600">Privacy Policy</a>
+          <a href="/terms" className="font-bold text-slate-500 underline hover:text-brand-600">Terms of Service</a>
         </footer>
       </div>
     </div>

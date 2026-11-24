@@ -33,7 +33,7 @@ Hono on Node 22  ── Drizzle ──►  Postgres
 | AI | Gemini helper that no screen used; Vite bakes its key into the client bundle | Claude on the Ideas tab, server-only, schema-validated output |
 | Notifications | Local `Notification` while the tab is open | Web Push (works when the app is closed, incl. iOS home-screen apps) |
 | Mobile | Capacitor iOS shell | PWA (install from Safari/Chrome) |
-| Tests | none | 20 API integration tests against real Postgres, CI on every push |
+| Tests | none | API integration tests against real Postgres plus Playwright browser tests, both in CI |
 
 ## Run locally
 
@@ -47,7 +47,14 @@ npm run db:migrate
 npm run dev                   # http://localhost:5173
 ```
 
-`npm run check` runs typechecks and the test suite.
+`npm run check` runs typechecks and the API test suite. `npm run e2e` runs the browser tests (Playwright).
+Both run on every pull request in GitHub Actions (`check` and `e2e` jobs).
+
+## Docs
+
+- [Roadmap](docs/roadmap.md)
+- [Monetization plan](docs/monetization-plan.md) and the interactive [pro forma](docs/proforma.html)
+- Privacy Policy and Terms of Service: edit `legal/*.md`, then run `python3 legal/layout.py`. Served at `/privacy` and `/terms`.
 
 ## Deploy on Railway
 

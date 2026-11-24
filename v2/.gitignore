@@ -4,3 +4,6 @@ dist
 *.log
 .claude/settings.local.json
 uploads
+test-results
+playwright-report
+e2e/.uploads

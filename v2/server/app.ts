@@ -8,6 +8,7 @@ import { sql } from "./db/client.js";
 import { env } from "./env.js";
 import { sameOriginWrites } from "./lib/auth.js";
 import { authRoutes } from "./routes/auth.js";
+import { calendarFileRoutes, calendarTokenRoutes } from "./routes/calendar.js";
 import { eventRoutes } from "./routes/events.js";
 import { ideaRoutes } from "./routes/ideas.js";
 import { inviteRoutes, leagueRoutes } from "./routes/leagues.js";
@@ -43,7 +44,9 @@ export function createApp() {
   });
 
   app.route("/auth", authRoutes);
+  app.route("/api/me/calendar-token", calendarTokenRoutes);
   app.route("/api/me", meRoutes);
+  app.route("/cal", calendarFileRoutes);
   app.route("/api/invites", inviteRoutes);
   app.route("/api/leagues/:leagueId/ideas", ideaRoutes);
   app.route("/api/leagues/:leagueId/events", eventRoutes);

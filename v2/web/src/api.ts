@@ -88,6 +88,11 @@ export const api = {
 
   events: (id: string, scope: "upcoming" | "past" = "upcoming") =>
     get<{ events: EventItem[] }>(`${L(id)}/events?scope=${scope}`).then((r) => r.events),
+  eventsBetween: (id: string, from: Date, to: Date) =>
+    get<{ events: EventItem[] }>(
+      `${L(id)}/events?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`,
+    ).then((r) => r.events),
+  calendarToken: () => get<{ token: string }>("/api/me/calendar-token").then((r) => r.token),
   event: (id: string, eventId: string) => get<{ event: EventItem }>(`${L(id)}/events/${eventId}`).then((r) => r.event),
   createEvent: (id: string, body: EventInput & { ideaId?: string | null }) =>
     post<{ event: EventItem }>(`${L(id)}/events`, body).then((r) => r.event),

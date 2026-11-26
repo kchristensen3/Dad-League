@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { differenceInCalendarDays, formatDistanceToNowStrict } from "date-fns";
 import { CalendarPlus, Flame, History, MapPin } from "lucide-react";
+import { CalendarView } from "../components/CalendarView";
 import { motion } from "motion/react";
 import { Link } from "react-router";
 import { useState } from "react";
@@ -74,13 +75,15 @@ export default function Home() {
   const { data: me } = useMe();
   const league = useLeague(leagueId);
   useDocumentTitle(league.data?.name ?? "");
-  const [scope, setScope] = useState<"upcoming" | "past">("upcoming");
+  const [view, setView] = useState<"upcoming" | "calendar" | "past">("upcoming");
+  // The calendar loads its own months; the header still counts upcoming RSVPs while it's open.
+  const scope = view === "past" ? "past" : "upcoming";
   const [planning, setPlanning] = useState<EventDraft | null>(null);
   const events = useQuery({ queryKey: ["events", leagueId, scope], queryFn: () => api.events(leagueId, scope) });
   const ideas = useQuery({ queryKey: ["ideas", leagueId, false], queryFn: () => api.ideas(leagueId) });
   const topIdea = ideas.data?.[0];
   const needsReply = (events.data ?? []).filter((e) => scope === "upcoming" && !e.cancelled && !e.myRsvp).length;
-  const next = scope === "upcoming" ? events.data?.find((e) => !e.cancelled) : undefined;
+  const next = view === "upcoming" ? events.data?.find((e) => !e.cancelled) : undefined;
   const rest = (events.data ?? []).filter((e) => e !== next);
 
   return (
@@ -99,7 +102,7 @@ export default function Home() {
 
       {next && <NextUp leagueId={leagueId} event={next} />}
 
-      {topIdea && scope === "upcoming" && (
+      {topIdea && view === "upcoming" && (
         <Card className="flex items-center gap-3 bg-gradient-to-r from-amber-50 to-white">
           <motion.span
             animate={{ rotate: [-6, 6, -6], scale: [1, 1.1, 1] }}
@@ -131,13 +134,14 @@ export default function Home() {
       )}
 
       <div className="flex gap-1 rounded-xl bg-slate-200/60 p-1 text-sm font-semibold">
-        {(["upcoming", "past"] as const).map((s) => (
+        {(["upcoming", "calendar", "past"] as const).map((s) => (
           <button
             key={s}
-            onClick={() => setScope(s)}
-            className={cx("relative flex-1 rounded-lg py-1.5 capitalize transition", scope !== s && "text-slate-500")}
+            onClick={() => setView(s)}
+            aria-pressed={view === s}
+            className={cx("relative flex-1 rounded-lg py-1.5 capitalize transition", view !== s && "text-slate-500")}
           >
-            {scope === s && (
+            {view === s && (
               <motion.span layoutId="home-scope" className="absolute inset-0 rounded-lg bg-white shadow-sm" transition={{ type: "spring", damping: 28, stiffness: 400 }} />
             )}
             <span className="relative">{s}</span>
@@ -145,7 +149,9 @@ export default function Home() {
         ))}
       </div>
 
-      {events.isLoading ? (
+      {view === "calendar" ? (
+        <CalendarView leagueId={leagueId} />
+      ) : events.isLoading ? (
         <Spinner />
       ) : events.data?.length ? (
         scope === "upcoming" ? (

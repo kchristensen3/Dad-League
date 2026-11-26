@@ -8,7 +8,7 @@ Live on Railway from `main`:
 - **Planning:** leagues and invites; events with RSVPs, reminders and event chat; standing meetups with rotating hosts and editing; ideas with voting and Claude suggestions; the Commissioner.
 - **Social:** board and chat; photos and Season Wrapped; Trophy Case.
 - **Platform:** place search and maps, push notifications, Google sign-in, and the new landing and legal pages.
-- **Testing:** 55 API tests and 13 browser tests run on every pull request.
+- **Testing:** 58 API tests and 14 browser tests run on every pull request.
 
 ## Now: finish and harden what's shipped
 
@@ -24,7 +24,7 @@ Live on Railway from `main`:
 **Small features with big payoff**
 - [ ] **Date polls.** Propose 2–4 dates, members tap which work, and the winner becomes the event. The old app's data model planned for this; it's the most-requested group-planning feature.
 - [ ] **"Who's bringing what" lists** on events (gear, food, rides).
-- [ ] **Calendar feed.** A private iCal link per member, so events show up in Apple or Google Calendar automatically. Today it's one-time "add to calendar" per event.
+- [ ] **Calendar feed.** A private iCal link per member, so events show up in Apple or Google Calendar automatically. Each member already has a private calendar token (used by "Add to calendar"), so this is one more route under `/cal/:token`.
 - [ ] **Text-message invite helper:** "Copy invite message" with a friendly pre-written text, since iMessage is where invites actually happen.
 - [ ] **Edit and delete for comments and chat messages** (only delete exists today), plus a light **report** button for moderation.
 

@@ -20,6 +20,8 @@ export const users = pgTable("users", {
   id: id(),
   googleSub: text("google_sub").unique(),
   appleSub: text("apple_sub").unique(),
+  /** Secret used in calendar (.ics) links, which phones open outside the app where there's no session. */
+  calendarToken: text("calendar_token").unique(),
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   avatarUrl: text("avatar_url"),

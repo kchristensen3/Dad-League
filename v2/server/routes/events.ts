@@ -24,7 +24,7 @@ const UPCOMING_GRACE_MS = 6 * 3600_000;
 async function listEvents(
   leagueId: string,
   meId: string,
-  opts: { scope?: "upcoming" | "past"; id?: string },
+  opts: { scope?: "upcoming" | "past"; id?: string; range?: { from: Date; to: Date } },
 ): Promise<EventItem[]> {
   const e = schema.events;
   const cutoff = new Date(Date.now() - UPCOMING_GRACE_MS);
@@ -42,11 +42,17 @@ async function listEvents(
     .where(
       and(
         eq(e.leagueId, leagueId),
-        opts.id ? eq(e.id, opts.id) : opts.scope === "past" ? lt(e.startsAt, cutoff) : gte(e.startsAt, cutoff),
+        opts.id
+          ? eq(e.id, opts.id)
+          : opts.range
+            ? and(gte(e.startsAt, opts.range.from), lt(e.startsAt, opts.range.to))
+            : opts.scope === "past"
+              ? lt(e.startsAt, cutoff)
+              : gte(e.startsAt, cutoff),
       ),
     )
-    .orderBy(opts.scope === "past" ? desc(e.startsAt) : asc(e.startsAt))
-    .limit(100);
+    .orderBy(opts.scope === "past" && !opts.range ? desc(e.startsAt) : asc(e.startsAt))
+    .limit(opts.range ? 500 : 100);
   if (rows.length === 0) return [];
 
   const rsvps = await db
@@ -99,6 +105,17 @@ async function loadEvent(leagueId: string, eventId: string) {
 
 export const eventRoutes = scopedRouter()
   .get("/", async (c) => {
+    const from = c.req.query("from");
+    const to = c.req.query("to");
+    if (from || to) {
+      // A date range, for the calendar view. Capped at about six weeks so one request stays small.
+      const range = { from: new Date(from ?? ""), to: new Date(to ?? "") };
+      const span = range.to.getTime() - range.from.getTime();
+      if (Number.isNaN(span) || span <= 0 || span > 45 * 86_400_000) {
+        throw new HTTPException(400, { message: "from and to must be ISO dates less than 45 days apart" });
+      }
+      return c.json({ events: await listEvents(c.var.leagueId, c.var.user.id, { range }) });
+    }
     const scope = c.req.query("scope") === "past" ? "past" : "upcoming";
     return c.json({ events: await listEvents(c.var.leagueId, c.var.user.id, { scope }) });
   })

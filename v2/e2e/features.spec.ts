@@ -106,3 +106,34 @@ test("the Commissioner's plan goes on the calendar with one tap", async ({ page 
   await page.waitForURL(/events\//);
   await expect(page.getByRole("heading", { name: "Disc golf" })).toBeVisible();
 });
+
+test("calendar heat map shows the day's meetups, and add to calendar offers working links", async ({ page }) => {
+  await signIn(page, "Calendar Dad");
+  const league = await createLeague(page);
+  const noon = new Date();
+  noon.setHours(12, 0, 0, 0);
+  const { event } = await api(page, "POST", `/api/leagues/${league.id}/events`, {
+    title: "Coney dog lunch",
+    category: "Food & Drink",
+    startsAt: noon.toISOString(),
+    location: "Lafayette Coney Island",
+  });
+
+  await page.goto(`/l/${league.id}`);
+  await page.getByRole("button", { name: "calendar", exact: true }).click();
+  await expect(page.getByRole("heading", { name: new Date().toLocaleString("en-US", { month: "long", year: "numeric" }) })).toBeVisible();
+  const day = page.getByRole("button", { name: /Coney dog lunch \(1 in\)/ });
+  await expect(day).toBeVisible();
+  await day.click();
+  await expect(page.getByRole("link", { name: "Coney dog lunch" })).toBeVisible();
+  await expect(page.getByText("Food & Drink").first()).toBeVisible();
+
+  await page.goto(`/l/${league.id}/events/${event.id}`);
+  await page.getByRole("button", { name: "Add to calendar" }).click();
+  const apple = page.getByRole("link", { name: /Apple, Outlook/ });
+  await expect(apple).toHaveAttribute("href", new RegExp(`/cal/[\\w-]+/events/${event.id}\\.ics$`));
+  const ics = await page.request.get((await apple.getAttribute("href"))!);
+  expect(ics.headers()["content-type"]).toContain("text/calendar");
+  expect(await ics.text()).toContain("SUMMARY:Coney dog lunch");
+  await expect(page.getByRole("link", { name: /Google Calendar/ })).toHaveAttribute("href", /calendar\.google\.com.*Coney\+dog\+lunch/);
+});

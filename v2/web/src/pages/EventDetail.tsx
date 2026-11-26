@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ArrowLeft, CalendarPlus, ExternalLink, MapPin, Mic, MoreHorizontal, Pencil, Repeat, Trash2, XCircle } from "lucide-react";
+import { ArrowLeft, ExternalLink, MapPin, Mic, MoreHorizontal, Pencil, Repeat, Trash2, XCircle } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import type { EventItem } from "../../../shared/schemas";
@@ -9,6 +9,7 @@ import { ChatThread } from "../components/ChatThread";
 import { DateTile, RsvpButtons, whenLabel } from "../components/EventCard";
 import { CATEGORY_STYLE } from "../fx";
 import { EventForm } from "../components/EventForm";
+import { AddToCalendar } from "../components/AddToCalendar";
 import { MapCard } from "../components/MapCard";
 import { PhotoSection } from "../components/Photos";
 import { SeriesForm } from "../components/SeriesForm";
@@ -48,32 +49,6 @@ function HandOff({ leagueId, event, onClose }: { leagueId: string; event: EventI
       <ErrorNote error={m.error} />
     </Sheet>
   );
-}
-
-/** Builds a one-event .ics file so people can add it to their own calendar. */
-function icsHref(e: EventItem) {
-  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-  const start = new Date(e.startsAt);
-  const end = new Date(start.getTime() + 2 * 3600_000);
-  const esc = (s: string) => s.replace(/[\\,;]/g, (m) => `\\${m}`).replace(/\n/g, "\\n");
-  const ics = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//Dad League//EN",
-    "BEGIN:VEVENT",
-    `UID:${e.id}@dadleague`,
-    `DTSTAMP:${fmt(new Date())}`,
-    `DTSTART:${fmt(start)}`,
-    `DTEND:${fmt(end)}`,
-    `SUMMARY:${esc(e.title)}`,
-    e.location ? `LOCATION:${esc(e.location)}` : "",
-    `DESCRIPTION:${esc([e.description, e.url].filter(Boolean).join("\n"))}`,
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ]
-    .filter(Boolean)
-    .join("\r\n");
-  return `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`;
 }
 
 export default function EventDetail() {
@@ -208,9 +183,7 @@ export default function EventDetail() {
         {!e.cancelled && !past && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
             <RsvpButtons leagueId={leagueId} event={e} />
-            <a href={icsHref(e)} download={`${e.title}.ics`} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-500 hover:text-brand-600">
-              <CalendarPlus size={16} /> Add to calendar
-            </a>
+            <AddToCalendar leagueId={leagueId} event={e} />
           </div>
         )}
 
